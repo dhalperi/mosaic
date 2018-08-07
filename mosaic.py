@@ -1,25 +1,27 @@
-from google.oauth2.credentials import Credentials
-from google.auth.transport.requests import AuthorizedSession
 import json
 import os
 
-# from oauth2client.client import flow_from_clientsecrets
-# import requests
+from google.auth.transport.requests import AuthorizedSession
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import Flow
+
+SIZE = 16
 
 
-# def get_credentials():
-#     flow = flow_from_clientsecrets('credentials.json',
-#                                    scope='https://www.googleapis.com/auth/photoslibrary.readonly',
-#                                    redirect_uri='urn:ietf:wg:oauth:2.0:oob')
-#     auth_uri = flow.step1_get_authorize_url()
-#     print('Visit', auth_uri, 'and paste the code here:')
-#     access_token = input().strip()
-#     return flow.step2_exchange(access_token)
+def get_credentials():
+    flow = Flow.from_client_secrets_file(
+        'app-creds.json',
+        scopes=['https://www.googleapis.com/auth/photoslibrary.readonly',
+                'https://www.googleapis.com/auth/photoslibrary.sharing'],
+        redirect_uri='urn:ietf:wg:oauth:2.0:oob')
 
+    auth_url, _ = flow.authorization_url(prompt='consent')
 
-config = {
-    'api_endpoint': 'https://photoslibrary.googleapis.com/v1',
-}
+    print('Please go to this URL: {}'.format(auth_url))
+    code = input('Enter the authorization code: ')
+    token = flow.fetch_token(code=code)
+    print(json.dumps(token))
+    print(json.dumps(flow.credentials))
 
 
 def list_media_items(session):
@@ -36,8 +38,6 @@ def list_media_items(session):
         ).json()
         cur = [m for m in rsp.get('mediaItems', [])]
         pageToken = rsp.get('nextPageToken')
-        if pageToken is None:
-            print(rsp)
         ret += cur
         download_images(session, cur)
 
@@ -58,17 +58,19 @@ def download_media_items(session):
 
 def download_images(session, media_items):
     for i, m in enumerate(media_items):
-        if (i+1) % 100 == 0:
+        if (i + 1) % 100 == 0:
             print(i)
         if m.get('mimeType', '').startswith('image/'):
-            outfile = f"thumbs/{m['id']}.36"
+            outfile = f"thumbs/{m['id']}.{SIZE}"
             if not os.path.exists(outfile):
                 with open(outfile, 'wb') as out:
-                    out.write(session.get(m['baseUrl'] + '=w36-h36-c').content)
+                    r = session.get(m['baseUrl'] + f'=w{SIZE}-h{SIZE}-c')
+                    r.raise_for_status()
+                    out.write(r.content)
 
 
 if __name__ == "__main__":
-    credentials = Credentials.from_authorized_user_file('photos-creds.json')
+    credentials = Credentials.from_authorized_user_file('photos-creds2.json')
     session = AuthorizedSession(credentials)
     media_items = download_media_items(session)
     print('Read', len(media_items), 'media items')

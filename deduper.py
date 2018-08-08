@@ -1,13 +1,14 @@
 import hashlib
 import json
 import os
+import subprocess
 from collections import defaultdict
 
+from PIL import Image
 from google.auth.transport.requests import AuthorizedSession
 from google.oauth2.credentials import Credentials
-import subprocess
 
-SIZE=16
+SIZE = 16
 
 
 def load_media_items():
@@ -20,15 +21,16 @@ def get_hashes(media_items):
     for m in media_items:
         mid = m['id']
         fname = f'thumbs/{mid}.{SIZE}'
-        if not os.path.exists(fname):
+        try:
+            im = Image.open(fname)
+        except IOError:
             continue
-        with open(fname, 'rb') as infile:
-            data = infile.read()
-            if len(data) > 0:
-                hash = hashlib.md5()
-                hash.update(data)
-                digest = hash.digest()
-                hashes[digest].add(mid)
+        data = im.tobytes()
+        if len(data) > 0:
+            hash = hashlib.md5()
+            hash.update(data)
+            digest = hash.digest()
+            hashes[digest].add(mid)
     return hashes
 
 
@@ -74,7 +76,7 @@ if __name__ == "__main__":
             print(i, a['filename'], 'contains', b['filename'], a['productUrl'])
         elif a_base in b_base and b_base not in a_base:
             print(i, b['filename'], 'contains', a['filename'], b['productUrl'])
-        elif a['filename'] == b['filename'] and a['mediaMetadata'] == b['mediaMetadata']:
+        elif a['filename'] == b['filename']:
             subprocess.call(['/usr/bin/open', a['productUrl']])
             subprocess.call(['/usr/bin/open', b['productUrl']])
         else:

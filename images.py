@@ -1,27 +1,39 @@
 import json
-from multiprocessing import Pool
+import os
+from typing import Dict, List, Tuple
+
 import numpy as np
 from PIL import Image
 from scipy.spatial.distance import cdist
-from typing import Dict, Tuple
-import os
+
+SIZE = 36
+MODE = 'L'  # L = grayscale
 
 
-def slice_target(im: Image) -> Dict[Tuple[int, int], bytes]:
-    slices = {}
+def slice_target(im: Image) -> Tuple[List[Tuple[int, int]], List[np.ndarray]]:
+    """Break the target image into SIZE x SIZE tiles and return a list of numpy arrays of their contents"""
+    positions = []
+    data = []
     (w, h) = im.size
-    for i in range(0, w, 36):
-        for j in range(0, h, 36):
-            slices[(i, j)] = np.array([b for b in im.crop((i, j, i + 36, j + 36)).tobytes()], dtype=np.uint8)
-    return slices
+    for i in range(0, w, SIZE):
+        for j in range(0, h, SIZE):
+            positions.append((i, j))
+            data.append(np.array([b for b in im.crop((i, j, i + SIZE, j + SIZE)).tobytes()], dtype=np.uint8))
+
+    return positions, data
 
 
-def read_thumbs() -> Dict[str, bytes]:
+def read_thumbs() -> Dict[str, np.ndarray]:
+    """Read all the thumbnails of the specified size in the given directory"""
     thumbs = {}
     for file in os.listdir('thumbs'):
+        if not file.endswith(f'.{SIZE}'):
+            continue
         try:
-            f = Image.open(f'thumbs/{file}').convert('L')
-            thumbs[file] = np.array([b for b in f.tobytes()], dtype=np.uint8)
+            im = Image.open(f'thumbs/{file}').convert(MODE)
+            if im.size != (SIZE, SIZE):
+                continue
+            thumbs[file] = np.array([b for b in im.tobytes()], dtype=np.uint8)
         except IOError:
             pass
     return thumbs
@@ -48,140 +60,75 @@ def match(slice: bytes, thumbs: Dict[str, bytes]) -> str:
     return curid
 
 
-if __name__ == "__old_main__":
-    print('Reading and slicing target')
-    target = Image.open('IMG_3178.JPG')
-    print(f'Produced {len(slices)} slices')
-
-    print('Reading thumbnails')
-    thumbs = read_thumbs()
-    print(f'Read {len(thumbs)} thumbnails')
-
-    output = Image.new('RGB', target.size)
-
-    print('Starting match process...')
+def compute_matches_best_repeats(dist: np.ndarray) -> Dict[int, int]:
+    """Computes a trivial matching by picking the thumbnail that best matches each tile, with repeats"""
+    best_matches = np.argmin(dist, axis=0)
+    return dict(enumerate(best_matches))
 
 
-    def handle_match(item):
-        pos, data = item
-        return pos, match(data, thumbs)
+def compute_matches_greedy_matching(dist: np.ndarray) -> Dict[int, int]:
+    """Computes a greedy matching with no repeats.
 
+    Iteratively picks the smallest entries in the distance array that correspond to unmatched rows and columns."""
 
-    p = Pool(4)
-    matches = p.map(handle_match, [x for i, x in enumerate(slice_target(target).items()) if i < 20])
-    for ((x, y), match_name) in matches:
-        match_data = thumbs[match_name]
-        output.paste(Image.frombytes('RGB', (36, 36), match_data), (x, y, x + 36, y + 36))
-        print(x, y, match_name)
-    output.save('output/output.jpg')
-
-if __name__ == "__oldmain2__":
-    print('Reading and slicing target')
-    target = Image.open('IMG_3178.JPG').convert('L')
-    print(f'Produced {len(slices)} slices')
-
-    print('Reading thumbnails')
-    thumbs = read_thumbs()
-    print(f'Read {len(thumbs)} thumbnails')
-
-    filter_thumbs = [(k, v) for (k, v) in thumbs.items() if len(v) == 36 * 36 * 1]
-    filter_data = np.array([v for (k, v) in filter_thumbs], dtype=np.uint8).astype(np.int32, copy=False)
-
-    output = Image.new('L', target.size)
-    for ((x, y), array) in slice_target(target).items():
-        diff = np.square(filter_data - array)
-        sums = diff.sum(axis=1)
-        index = np.argmin(sums)
-        match = filter_thumbs[index][0]
-        print(x, y, match)
-        output.paste(Image.frombytes('L', (36, 36), thumbs[match]), (x, y, x + 36, y + 36))
-        if y == 0:
-            output.save(f'output/output-L-{x}.jpg')
-    output.save(f'output/output-L.jpg')
-
-if __name__ == "__main3__":
-    print('Reading and slicing target')
-    target = Image.open('IMG_3178.JPG').convert('L')
-    slices = slice_target(target)
-    print(f'Produced {len(slices)} slices')
-    slice_list = list(slices.items())
-    slice_data = np.array([array for (pos, array) in slice_list], dtype=np.uint8)
-
-    print('Reading thumbnails')
-    thumbs = read_thumbs()
-    print(f'Read {len(thumbs)} thumbnails')
-    filter_thumbs = [(k, v) for (k, v) in thumbs.items() if len(v) == 36 * 36 * 1]
-    filter_data = np.array([v for (k, v) in filter_thumbs], dtype=np.uint8).astype(np.int32, copy=False)
-
-    if not os.path.exists('dist.npy'):
-        print('Computing distances')
-        dist = cdist(slice_data, filter_data, 'sqeuclidean')
-        print('Computed distances', dist.shape)
-        np.save('dist.npy', dist)
-    else:
-        dist = np.load('dist.npy')
-    matches = np.argmin(dist, axis=1)
-
-    output = Image.new('L', target.size)
-    for i, index in enumerate(matches):
-        (x, y) = slice_list[i][0]
-        match = filter_thumbs[index][0]
-        print(x, y, match)
-        output.paste(Image.frombytes('L', (36, 36), thumbs[match]), (x, y, x + 36, y + 36))
-    output.save(f'output/output-L.jpg')
-
-if __name__ == "__main__":
-    print('Loading costs')
-    dist = np.load('dist.npy').transpose()
-    print('Loaded cost matrix of size', dist.shape)
-
-    print('Reshaping dist')
-    shape = dist.shape
-    dist = np.reshape(dist, (dist.size, 1))
-    print(dist.shape)
+    print('Reshaping dist into a 1-D array')
+    dist_1d = np.reshape(dist, (dist.size, 1))
 
     print('Sorting dist')
-    a = np.argsort(dist, axis=0)
-    print('Unraveling dist')
-    a_idx = np.array(np.unravel_index(a, shape)).T[0]
+    min_idx_1d = np.argsort(dist_1d, axis=0)
+    min_idx = np.array(np.unravel_index(min_idx_1d, dist.shape)).T[0]
 
     print('Matching')
     count = 0
-    if not os.path.exists('matches.out'):
-        matches = {}
-        used = set()
-        for (i, j) in a_idx:
-            count += 1
-            if count % 100000 == 0:
-                print(count, len(matches), len(used))
-            i = int(i)
-            j = int(j)
-            if j not in matches and i not in used:
-                matches[j] = i
-                used.add(i)
-            if len(matches) == shape[1]:
+    matches = {}
+    used = set()
+    break_at = min(dist.shape)
+    for (i, j) in min_idx:
+        count += 1
+        if count & 0xFFFF == 0:
+            print(count, len(used))
+        i = int(i)
+        j = int(j)
+        if i not in used and j not in matches:
+            matches[j] = i
+            used.add(i)
+            if len(matches) >= break_at:
                 break
-        with open('matches.out', 'w') as out:
-            json.dump(matches, out)
+    return matches
+
+
+if __name__ == "__main__":
+    print('Reading and slicing target')
+    target = Image.open('IMG_3178.JPG').convert(MODE)
+    slices = slice_target(target)
+    slices_offsets = slices[0]
+    slices_matrix = np.array(slices[1], dtype=np.uint8)
+    print(f'Produced {len(slices_offsets)} slices and a {slices_matrix.shape} array of their bytes')
+
+    print('Reading thumbnails')
+    thumbs = list(read_thumbs().items())  # type: List[Tuple[str, np.ndarray]]
+    thumbs_matrix = np.array([v for (k, v) in thumbs], dtype=np.uint8)
+    print(f'Read {len(thumbs)} thumbnails of the right size and produced a {thumbs_matrix.shape} array of their bytes')
+
+    if not os.path.exists('dist.npy'):
+        print('Computing distances')
+        dist = cdist(thumbs_matrix, slices_matrix, 'euclidean').astype(np.uint16)
+        print('Computed a', dist.shape, 'array of distances')
+        np.save('dist.npy', dist)
+    else:
+        dist = np.load('dist.npy')
+
+    if not os.path.exists('matches.out'):
+        matches = compute_matches_greedy_matching(dist)
+        with open('matches.out', 'w') as outfile:
+            json.dump(matches, outfile)
     else:
         with open('matches.out', 'r') as infile:
             matches = json.load(infile)
 
-    print('Reading and slicing target')
-    target = Image.open('IMG_3178.JPG').convert('L')
-    slices = slice_target(target)
-    slice_list = list(slices.items())
-    print(f'Produced {len(slices)} slices')
-
-    print('Reading thumbnails')
-    thumbs = read_thumbs()
-    print(f'Read {len(thumbs)} thumbnails')
-
-    filter_thumbs = [(k, v) for (k, v) in thumbs.items() if len(v) == 36 * 36 * 1]
-    filter_data = np.array([v for (k, v) in filter_thumbs], dtype=np.uint8).astype(np.int32, copy=False)
-    output = Image.new('L', target.size)
+    output = Image.new(MODE, target.size)
     for i, j in matches.items():
-        (x, y) = slice_list[i][0]
-        match = filter_thumbs[j][0]
-        output.paste(Image.frombytes('L', (36, 36), thumbs[match]), (x, y, x + 36, y + 36))
-    output.save(f'output/output-L.jpg')
+        (x, y) = slices_offsets[i]
+        match = thumbs[j]
+        output.paste(Image.frombytes(MODE, (SIZE, SIZE), match[1]), (x, y, x + SIZE, y + SIZE))
+    output.save(f'output/output-{MODE}.jpg')

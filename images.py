@@ -8,6 +8,14 @@ from scipy.spatial.distance import cdist
 
 SIZE = 36
 MODE = 'L'  # L = grayscale
+# Metric is tough, but looks like L1 is better according to at least one study.
+METRIC = 'cityblock'
+
+
+def metric_post(dist):
+    if METRIC == 'cityblock':
+        return dist / SIZE
+    return dist
 
 
 def slice_target(im: Image) -> Tuple[List[Tuple[int, int]], List[np.ndarray]]:
@@ -24,7 +32,9 @@ def slice_target(im: Image) -> Tuple[List[Tuple[int, int]], List[np.ndarray]]:
 
 
 def read_thumbs() -> Dict[str, np.ndarray]:
-    """Read all the thumbnails of the specified size in the given directory"""
+    """Read all the thumbnails of the specified size in the given directory.
+
+    Each image is returned twice, once flipped horizontally."""
     thumbs = {}
     for file in os.listdir('thumbs'):
         if not file.endswith(f'.{SIZE}'):
@@ -34,6 +44,8 @@ def read_thumbs() -> Dict[str, np.ndarray]:
             if im.size != (SIZE, SIZE):
                 continue
             thumbs[file] = np.array([b for b in im.tobytes()], dtype=np.uint8)
+            thumbs[file + '.flip'] = np.array([b for b in im.transpose(Image.FLIP_LEFT_RIGHT).tobytes()],
+                                              dtype=np.uint8)
         except IOError:
             pass
     return thumbs
@@ -85,13 +97,14 @@ def compute_matches_greedy_matching(dist: np.ndarray) -> Dict[int, int]:
     break_at = min(dist.shape)
     for (i, j) in min_idx:
         count += 1
-        if count & 0xFFFF == 0:
+        if count & 0xFFFFF == 0:
             print(count, len(used))
         i = int(i)
         j = int(j)
-        if i not in used and j not in matches:
+        idx = i & 0xFFFFFFFE  # mask out bottom bit to indicate flipping
+        if idx not in used and j not in matches:
             matches[j] = i
-            used.add(i)
+            used.add(idx)
             if len(matches) >= break_at:
                 break
     return matches
@@ -110,25 +123,25 @@ if __name__ == "__main__":
     thumbs_matrix = np.array([v for (k, v) in thumbs], dtype=np.uint8)
     print(f'Read {len(thumbs)} thumbnails of the right size and produced a {thumbs_matrix.shape} array of their bytes')
 
-    if not os.path.exists('dist.npy'):
+    if not os.path.exists(f'dist-{METRIC}.npy'):
         print('Computing distances')
-        dist = cdist(thumbs_matrix, slices_matrix, 'euclidean').astype(np.uint16)
+        dist = metric_post(cdist(thumbs_matrix, slices_matrix, METRIC)).astype(np.uint16)
         print('Computed a', dist.shape, 'array of distances')
-        np.save('dist.npy', dist)
+        np.save(f'dist-{METRIC}.npy', dist)
     else:
-        dist = np.load('dist.npy')
+        dist = np.load(f'dist-{METRIC}.npy')
 
-    if not os.path.exists('matches.out'):
+    if not os.path.exists(f'matches-{METRIC}.out'):
         matches = compute_matches_greedy_matching(dist)
-        with open('matches.out', 'w') as outfile:
+        with open(f'matches-{METRIC}.out', 'w') as outfile:
             json.dump(matches, outfile)
     else:
-        with open('matches.out', 'r') as infile:
-            matches = json.load(infile)
+        with open(f'matches-{METRIC}.out', 'r') as infile:
+            matches = {int(i): j for i, j in json.load(infile).items()}
 
     output = Image.new(MODE, target.size)
     for i, j in matches.items():
         (x, y) = slices_offsets[i]
         match = thumbs[j]
         output.paste(Image.frombytes(MODE, (SIZE, SIZE), match[1]), (x, y, x + SIZE, y + SIZE))
-    output.save(f'output/output-{MODE}.jpg')
+    output.save(f'output/output-{MODE}-{METRIC}.jpg')

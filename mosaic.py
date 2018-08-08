@@ -88,7 +88,7 @@ def download_images(session, media_items):
 def delete_unknown_files(media_items):
     known_files = set(f"thumbs/{m['id']}.{SIZE}" for m in media_items)
     files = set(f'thumbs/{f}' for f in os.listdir('thumbs'))
-    print(len(files - known_files))
+    print(len(files - known_files), 'to delete')
     for f in files - known_files:
         os.unlink(f)
 

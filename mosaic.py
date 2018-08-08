@@ -5,7 +5,7 @@ from google.auth.transport.requests import AuthorizedSession
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 
-SIZE = 16
+SIZE = 36
 
 
 def get_credentials():
@@ -30,17 +30,33 @@ def list_media_items(session):
         'pageSize': 500,
         'fields': 'mediaItems(id,baseUrl,mimeType),nextPageToken',
     }
+    search_json = {
+        "filters": {
+            "includeArchivedMedia": False,
+            "contentFilter": {
+                "excludedContentCategories": [
+                    "DOCUMENTS",
+                    "RECEIPTS",
+                    "SCREENSHOTS",
+                    "UTILITY",
+                    "WHITEBOARDS",
+                ]
+            }
+        },
+    }
     while True:
-        print('Current # of media items is', len(ret))
-        rsp = session.get(
-            'https://photoslibrary.googleapis.com/v1/mediaItems',
-            params=params,
+        rsp = session.post(
+            'https://photoslibrary.googleapis.com/v1/mediaItems:search',
+            params=params, json=search_json,
         ).json()
+
         cur = [m for m in rsp.get('mediaItems', [])]
-        pageToken = rsp.get('nextPageToken')
         ret += cur
+        print(f'{len(cur)} new items, total {len(ret)}')
+
         download_images(session, cur)
 
+        pageToken = rsp.get('nextPageToken')
         if pageToken is None:
             break
         params['pageToken'] = pageToken
@@ -69,8 +85,18 @@ def download_images(session, media_items):
                     out.write(r.content)
 
 
+def delete_unknown_files(media_items):
+    known_files = set(f"thumbs/{m['id']}.{SIZE}" for m in media_items)
+    files = set(f'thumbs/{f}' for f in os.listdir('thumbs'))
+    print(len(files - known_files))
+    for f in files - known_files:
+        os.unlink(f)
+
+
 if __name__ == "__main__":
     credentials = Credentials.from_authorized_user_file('photos-creds2.json')
     session = AuthorizedSession(credentials)
     media_items = download_media_items(session)
     print('Read', len(media_items), 'media items')
+
+    delete_unknown_files(media_items)

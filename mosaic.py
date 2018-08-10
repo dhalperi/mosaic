@@ -1,5 +1,6 @@
 import json
 import os
+import queue
 from threading import Thread
 
 from google.auth.transport.requests import AuthorizedSession
@@ -45,6 +46,13 @@ def list_media_items(session):
             }
         },
     }
+    concurrent = 100
+    download_queue = queue.Queue(concurrent * 2)
+    for i in range(16):
+        t = Thread(target=lambda: _download_image(session, download_queue))
+        t.daemon = True
+        t.start()
+
     while True:
         rsp = session.post(
             'https://photoslibrary.googleapis.com/v1/mediaItems:search',
@@ -55,12 +63,14 @@ def list_media_items(session):
         ret += cur
         print(f'{len(cur)} new items, total {len(ret)}')
 
-        download_images(session, cur)
+        for m in cur:
+            download_queue.put(m)
 
         pageToken = rsp.get('nextPageToken')
         if pageToken is None:
             break
         params['pageToken'] = pageToken
+    download_queue.join()
 
     return ret
 
@@ -84,19 +94,6 @@ def download_media_items(session):
         json.dump(media_items, out)
     print('Wrote', len(media_items), 'media items out')
     return media_items
-
-
-def download_images(session, media_items):
-    import queue
-    concurrent = 50
-    queue = queue.Queue(concurrent * 2)
-    for i in range(16):
-        t = Thread(target=lambda: _download_image(session, queue))
-        t.daemon = True
-        t.start()
-    for m in media_items:
-        queue.put(m)
-    queue.join()
 
 
 def delete_unknown_files(media_items):

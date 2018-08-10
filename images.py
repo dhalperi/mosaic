@@ -9,12 +9,14 @@ from scipy.spatial.distance import cdist
 SIZE = 36
 MODE = 'L'  # L = grayscale
 # Metric is tough, but looks like L1 is better according to at least one study.
-METRIC = 'cityblock'
+METRIC = 'correlation'
 
 
 def metric_post(dist):
     if METRIC == 'cityblock':
         return dist / SIZE
+    elif METRIC == 'correlation':
+        return dist * 2**14
     return dist
 
 
@@ -42,6 +44,7 @@ def read_thumbs() -> Dict[str, np.ndarray]:
         try:
             im = Image.open(f'thumbs/{file}').convert(MODE)
             if im.size != (SIZE, SIZE):
+                print(f'Image {file} has size {im.size} and is_animated: {im.is_animated}')
                 continue
             thumbs[file] = np.array([b for b in im.tobytes()], dtype=np.uint8)
             thumbs[file + '.flip'] = np.array([b for b in im.transpose(Image.FLIP_LEFT_RIGHT).tobytes()],
@@ -115,7 +118,8 @@ if __name__ == "__main__":
     target = Image.open('IMG_3178.JPG').convert(MODE)
     slices = slice_target(target)
     slices_offsets = slices[0]
-    slices_matrix = np.array(slices[1], dtype=np.uint8)
+    slices_data = slices[1]
+    slices_matrix = np.array(slices_data, dtype=np.uint8)
     print(f'Produced {len(slices_offsets)} slices and a {slices_matrix.shape} array of their bytes')
 
     print('Reading thumbnails')
@@ -139,9 +143,15 @@ if __name__ == "__main__":
         with open(f'matches-{METRIC}.out', 'r') as infile:
             matches = {int(i): j for i, j in json.load(infile).items()}
 
+    P = 15
     output = Image.new(MODE, target.size)
     for i, j in matches.items():
         (x, y) = slices_offsets[i]
-        match = thumbs[j]
-        output.paste(Image.frombytes(MODE, (SIZE, SIZE), match[1]), (x, y, x + SIZE, y + SIZE))
-    output.save(f'output/output-{MODE}-{METRIC}.jpg')
+        slice = slices_data[i]
+        match = thumbs[j][1].astype(np.int16)
+        pct = np.percentile(match, [P, 100-P])
+        shift = (np.mean(slice) - np.mean(match))
+        match += int(min(max(-pct[0], shift), 255-pct[1]))
+        match = match.clip(0, 255).astype(np.uint8)
+        output.paste(Image.frombytes(MODE, (SIZE, SIZE), match), (x, y, x + SIZE, y + SIZE))
+    output.save(f'output/output-{MODE}-{METRIC}-shiftpct-{P}.jpg')

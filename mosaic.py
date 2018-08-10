@@ -1,5 +1,6 @@
 import json
 import os
+from threading import Thread
 
 from google.auth.transport.requests import AuthorizedSession
 from google.oauth2.credentials import Credentials
@@ -64,6 +65,19 @@ def list_media_items(session):
     return ret
 
 
+def _download_image(session, queue):
+    while True:
+        m = queue.get()
+        if m.get('mimeType', '').startswith('image/'):
+            outfile = f"thumbs/{m['id']}.{SIZE}"
+            if not os.path.exists(outfile) or os.stat(outfile).st_size == 0:
+                with open(outfile, 'wb') as out:
+                    r = session.get(m['baseUrl'] + f'=w{SIZE}-h{SIZE}-c')
+                    r.raise_for_status()
+                    out.write(r.content)
+        queue.task_done()
+
+
 def download_media_items(session):
     media_items = list_media_items(session)
     with open('media_items.json', 'w') as out:
@@ -73,16 +87,16 @@ def download_media_items(session):
 
 
 def download_images(session, media_items):
-    for i, m in enumerate(media_items):
-        if (i + 1) % 100 == 0:
-            print(i)
-        if m.get('mimeType', '').startswith('image/'):
-            outfile = f"thumbs/{m['id']}.{SIZE}"
-            if not os.path.exists(outfile):
-                with open(outfile, 'wb') as out:
-                    r = session.get(m['baseUrl'] + f'=w{SIZE}-h{SIZE}-c')
-                    r.raise_for_status()
-                    out.write(r.content)
+    import queue
+    concurrent = 50
+    queue = queue.Queue(concurrent * 2)
+    for i in range(16):
+        t = Thread(target=lambda: _download_image(session, queue))
+        t.daemon = True
+        t.start()
+    for m in media_items:
+        queue.put(m)
+    queue.join()
 
 
 def delete_unknown_files(media_items):

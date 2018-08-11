@@ -12,12 +12,18 @@ MODE = 'L'  # L = grayscale
 METRIC = 'correlation'
 
 
-def metric_post(dist):
+def compute_dist(thumbs_matrix: np.ndarray, slices_matrix: np.ndarray) -> np.ndarray:
     if METRIC == 'cityblock':
-        return dist / SIZE
+        raw_metric = cdist(thumbs_matrix, slices_matrix, 'cityblock')
+        return (raw_metric / SIZE).astype(np.uint16)
     elif METRIC == 'correlation':
-        return dist * 2 ** 14
-    return dist
+        raw_metric = cdist(thumbs_matrix, slices_matrix, 'correlation')
+        return (raw_metric * 2 ** 14).astype(np.uint16)
+    elif METRIC == 'euclidean':
+        raw_metric = cdist(thumbs_matrix, slices_matrix, 'euclidean')
+        return raw_metric.astype(np.uint16)
+
+    raise ValueError(f'Unknown metric: {METRIC}')
 
 
 def produce_output_tile(thumb, target_tile, x, y):
@@ -140,7 +146,7 @@ if __name__ == "__main__":
     # Compute distance based on the given metric, or load cached distance
     if not os.path.exists(f'dist-{METRIC}.npy'):
         print('Computing distances')
-        dist = metric_post(cdist(thumbs_matrix, slices_matrix, METRIC)).astype(np.uint16)
+        dist = compute_dist(thumbs_matrix, slices_matrix)
         print('Computed a', dist.shape, 'array of distances')
         np.save(f'dist-{METRIC}.npy', dist)
     else:

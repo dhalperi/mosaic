@@ -16,8 +16,18 @@ def metric_post(dist):
     if METRIC == 'cityblock':
         return dist / SIZE
     elif METRIC == 'correlation':
-        return dist * 2**14
+        return dist * 2 ** 14
     return dist
+
+
+def produce_output_tile(thumb, target_tile, x, y):
+    if METRIC == 'correlation':
+        P = 15
+        pct = np.percentile(thumb, [P, 100 - P])
+        shift = (np.mean(target_tile) - np.mean(thumb))
+        thumb += int(min(max(-pct[0], shift), 255 - pct[1]))
+        thumb = thumb.clip(0, 255).astype(np.uint8)
+    return thumb
 
 
 def slice_target(im: Image) -> Tuple[List[Tuple[int, int]], List[np.ndarray]]:
@@ -127,6 +137,7 @@ if __name__ == "__main__":
     thumbs_matrix = np.array([v for (k, v) in thumbs], dtype=np.uint8)
     print(f'Read {len(thumbs)} thumbnails of the right size and produced a {thumbs_matrix.shape} array of their bytes')
 
+    # Compute distance based on the given metric, or load cached distance
     if not os.path.exists(f'dist-{METRIC}.npy'):
         print('Computing distances')
         dist = metric_post(cdist(thumbs_matrix, slices_matrix, METRIC)).astype(np.uint16)
@@ -135,6 +146,7 @@ if __name__ == "__main__":
     else:
         dist = np.load(f'dist-{METRIC}.npy')
 
+    # Compute matches, or load cached matches
     if not os.path.exists(f'matches-{METRIC}.out'):
         matches = compute_matches_greedy_matching(dist)
         with open(f'matches-{METRIC}.out', 'w') as outfile:
@@ -143,15 +155,18 @@ if __name__ == "__main__":
         with open(f'matches-{METRIC}.out', 'r') as infile:
             matches = {int(i): j for i, j in json.load(infile).items()}
 
-    P = 15
-    output = Image.new(MODE, target.size)
+    # Assemble the mosaic from all the chosen tiles
+    print('Assembling mosaic')
+    mosaic = Image.new(MODE, target.size)
     for i, j in matches.items():
         (x, y) = slices_offsets[i]
-        slice = slices_data[i]
-        match = thumbs[j][1].astype(np.int16)
-        pct = np.percentile(match, [P, 100-P])
-        shift = (np.mean(slice) - np.mean(match))
-        match += int(min(max(-pct[0], shift), 255-pct[1]))
-        match = match.clip(0, 255).astype(np.uint8)
-        output.paste(Image.frombytes(MODE, (SIZE, SIZE), match), (x, y, x + SIZE, y + SIZE))
-    output.save(f'output/output-{MODE}-{METRIC}-shiftpct-{P}.jpg')
+        match = produce_output_tile(thumbs[j][1].astype(np.int16), slices_data[i], x, y)
+        mosaic.paste(Image.frombytes(MODE, (SIZE, SIZE), match), (x, y, x + SIZE, y + SIZE))
+
+    # Do a slight blending of assembled mosaic and target image to make it look better
+    print('Blending mosaic and target')
+    alpha = 15
+    blended = Image.blend(mosaic, target, alpha / 100)
+
+    print('Saving produced mosaic')
+    blended.save(f'output/output-{MODE}-{METRIC}.jpg')

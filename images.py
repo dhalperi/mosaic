@@ -1,14 +1,20 @@
 import json
 import os
+import time
 from typing import Dict, List, Tuple
 
 import numpy as np
 from PIL import Image
-from scipy.spatial.distance import cdist
+from scipy.spatial.distance import cdist, cityblock
 
 SIZE = 36
 MODE = 'L'  # L = grayscale
-# Metric is tough, but looks like L1 is better according to at least one study.
+# Metric is tough.
+# L2 is "standard", but looks like L1 is better according to at least one study.
+# L1 does seem to look better in practice, but correlation (+shifting output) seems even better.
+# Seems like there ought to be another opportunity here -- since correlation overestimates
+#    ability to shift (w/clipping), but the L1-shifted implementation below seems not to work.
+#    ... and it's REALLY slow.
 METRIC = 'correlation'
 
 
@@ -22,12 +28,29 @@ def compute_dist(thumbs_matrix: np.ndarray, slices_matrix: np.ndarray) -> np.nda
     elif METRIC == 'euclidean':
         raw_metric = cdist(thumbs_matrix, slices_matrix, 'euclidean')
         return raw_metric.astype(np.uint16)
+    elif METRIC == 'L1-shifted':
+        P = 15
+        mean_slices = np.mean(slices_matrix, 1).astype(np.int16)
+        M = thumbs_matrix.shape[0]
+        N = slices_matrix.shape[0]
+        ret = np.ndarray((M, N), np.uint16)
+        for i in range(M):
+            thumb = thumbs_matrix[i].astype(np.int16)
+            m = np.mean(thumb)
+            pct = np.percentile(thumb, [P, 100 - P])
+            lower = int(-pct[0])
+            upper = int(255 - pct[1])
+            for j in range(N):
+                shift_thumb = thumb + min(max(lower, mean_slices[j] - m), upper)
+                ret[i, j] = cityblock(slices_matrix[j], shift_thumb.clip(0, 255).astype(np.uint8))
+
+        return ret
 
     raise ValueError(f'Unknown metric: {METRIC}')
 
 
 def produce_output_tile(thumb, target_tile, x, y):
-    if METRIC == 'correlation':
+    if METRIC in ['correlation', 'L1-shifted']:
         P = 15
         pct = np.percentile(thumb, [P, 100 - P])
         shift = (np.mean(target_tile) - np.mean(thumb))
@@ -41,10 +64,12 @@ def slice_target(im: Image) -> Tuple[List[Tuple[int, int]], List[np.ndarray]]:
     positions = []
     data = []
     (w, h) = im.size
-    for i in range(0, w, SIZE):
-        for j in range(0, h, SIZE):
+    for i in range(0, w // SIZE):
+        for j in range(0, h // SIZE):
             positions.append((i, j))
-            data.append(np.array([b for b in im.crop((i, j, i + SIZE, j + SIZE)).tobytes()], dtype=np.uint8))
+            pi = i * SIZE
+            pj = j * SIZE
+            data.append(np.array([b for b in im.crop((pi, pj, pi + SIZE, pj + SIZE)).tobytes()], dtype=np.uint8))
 
     return positions, data
 
@@ -166,8 +191,10 @@ if __name__ == "__main__":
     mosaic = Image.new(MODE, target.size)
     for i, j in matches.items():
         (x, y) = slices_offsets[i]
+        px = x * SIZE
+        py = y * SIZE
         match = produce_output_tile(thumbs[j][1].astype(np.int16), slices_data[i], x, y)
-        mosaic.paste(Image.frombytes(MODE, (SIZE, SIZE), match), (x, y, x + SIZE, y + SIZE))
+        mosaic.paste(Image.frombytes(MODE, (SIZE, SIZE), match), (px, py, px + SIZE, py + SIZE))
 
     # Do a slight blending of assembled mosaic and target image to make it look better
     print('Blending mosaic and target')

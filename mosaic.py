@@ -121,7 +121,7 @@ def delete_unknown_files(media_items, size=SIZE):
 if __name__ == "__main__":
     credentials = Credentials.from_authorized_user_file('photos-creds2.json')
     session = AuthorizedSession(credentials)
-    session = get_session()
+    # session = get_session()
     media_items = list_media_items(session)
     print('Read', len(media_items), 'media items')
     size = 36

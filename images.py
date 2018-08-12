@@ -1,13 +1,13 @@
 import json
 import os
-import time
-from typing import Dict, List, Tuple
+from typing import Dict, List, NamedTuple, Tuple
 
 import numpy as np
 from PIL import Image
 from scipy.spatial.distance import cdist, cityblock
 
 SIZE = 36
+OUTPUT_SIZE = 64
 MODE = 'L'  # L = grayscale
 # Metric is tough.
 # L2 is "standard", but looks like L1 is better according to at least one study.
@@ -51,6 +51,7 @@ def compute_dist(thumbs_matrix: np.ndarray, slices_matrix: np.ndarray) -> np.nda
 
 def produce_output_tile(thumb, target_tile, x, y):
     if METRIC in ['correlation', 'L1-shifted']:
+        thumb = thumb.astype(np.int16)
         P = 15
         pct = np.percentile(thumb, [P, 100 - P])
         shift = (np.mean(target_tile) - np.mean(thumb))
@@ -74,11 +75,17 @@ def slice_target(im: Image) -> Tuple[List[Tuple[int, int]], List[np.ndarray]]:
     return positions, data
 
 
-def read_thumbs() -> Dict[str, np.ndarray]:
+class Thumb(NamedTuple):
+    uid: str
+    bytes: np.ndarray
+    flipped: bool
+
+
+def read_thumbs() -> List[Thumb]:
     """Read all the thumbnails of the specified size in the given directory.
 
     Each image is returned twice, once flipped horizontally."""
-    thumbs = {}
+    thumbs = []
     for file in os.listdir('thumbs'):
         if not file.endswith(f'.{SIZE}'):
             continue
@@ -87,9 +94,13 @@ def read_thumbs() -> Dict[str, np.ndarray]:
             if im.size != (SIZE, SIZE):
                 print(f'Image {file} has size {im.size} and is_animated: {im.is_animated}')
                 continue
-            thumbs[file] = np.array([b for b in im.tobytes()], dtype=np.uint8)
-            thumbs[file + '.flip'] = np.array([b for b in im.transpose(Image.FLIP_LEFT_RIGHT).tobytes()],
-                                              dtype=np.uint8)
+            fname = os.path.splitext(os.path.basename(file))[0]
+            thumbs.append(Thumb(uid=fname, bytes=np.array([b for b in im.tobytes()], dtype=np.uint8), flipped=False))
+            thumbs.append(
+                Thumb(uid=fname,
+                      bytes=np.array([b for b in im.transpose(Image.FLIP_LEFT_RIGHT).tobytes()],
+                                     dtype=np.uint8),
+                      flipped=True))
         except IOError:
             pass
     return thumbs
@@ -164,8 +175,8 @@ if __name__ == "__main__":
     print(f'Produced {len(slices_offsets)} slices and a {slices_matrix.shape} array of their bytes')
 
     print('Reading thumbnails')
-    thumbs = list(read_thumbs().items())  # type: List[Tuple[str, np.ndarray]]
-    thumbs_matrix = np.array([v for (k, v) in thumbs], dtype=np.uint8)
+    thumbs = read_thumbs()
+    thumbs_matrix = np.array([t.bytes for t in thumbs], dtype=np.uint8)
     print(f'Read {len(thumbs)} thumbnails of the right size and produced a {thumbs_matrix.shape} array of their bytes')
 
     # Compute distance based on the given metric, or load cached distance
@@ -188,17 +199,23 @@ if __name__ == "__main__":
 
     # Assemble the mosaic from all the chosen tiles
     print('Assembling mosaic')
-    mosaic = Image.new(MODE, target.size)
+    output_size = (target.size[0] // SIZE * OUTPUT_SIZE, target.size[1] // SIZE * OUTPUT_SIZE)
+    mosaic = Image.new(MODE, output_size)
     for i, j in matches.items():
         (x, y) = slices_offsets[i]
-        px = x * SIZE
-        py = y * SIZE
-        match = produce_output_tile(thumbs[j][1].astype(np.int16), slices_data[i], x, y)
-        mosaic.paste(Image.frombytes(MODE, (SIZE, SIZE), match), (px, py, px + SIZE, py + SIZE))
+        thumb = thumbs[j]
+        data = np.array([b for b in Image.open(f'thumbs/{thumb.uid}.{OUTPUT_SIZE}').convert(MODE).tobytes()])
+        match = produce_output_tile(data, slices_data[i], x, y)
+        px = x * OUTPUT_SIZE
+        py = y * OUTPUT_SIZE
+        mosaic.paste(Image.frombytes(MODE, (OUTPUT_SIZE, OUTPUT_SIZE), match),
+                     (px, py, px + OUTPUT_SIZE, py + OUTPUT_SIZE))
 
     # Do a slight blending of assembled mosaic and target image to make it look better
     print('Blending mosaic and target')
     alpha = 15
+    if target.size != output_size:
+        target = target.resize(output_size)
     blended = Image.blend(mosaic, target, alpha / 100)
 
     print('Saving produced mosaic')

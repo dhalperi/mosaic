@@ -1,10 +1,12 @@
 import json
 import os
-from typing import Dict, List, NamedTuple, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 from PIL import Image
 from scipy.spatial.distance import cdist, cityblock
+
+from .lib import read_thumbs
 
 SIZE = 36
 OUTPUT_SIZE = 64
@@ -73,37 +75,6 @@ def slice_target(im: Image) -> Tuple[List[Tuple[int, int]], List[np.ndarray]]:
             data.append(np.array([b for b in im.crop((pi, pj, pi + SIZE, pj + SIZE)).tobytes()], dtype=np.uint8))
 
     return positions, data
-
-
-class Thumb(NamedTuple):
-    uid: str
-    bytes: np.ndarray
-    flipped: bool
-
-
-def read_thumbs() -> List[Thumb]:
-    """Read all the thumbnails of the specified size in the given directory.
-
-    Each image is returned twice, once flipped horizontally."""
-    thumbs = []
-    for file in os.listdir('thumbs'):
-        if not file.endswith(f'.{SIZE}'):
-            continue
-        try:
-            im = Image.open(f'thumbs/{file}').convert(MODE)
-            if im.size != (SIZE, SIZE):
-                print(f'Image {file} has size {im.size} and is_animated: {im.is_animated}')
-                continue
-            fname = os.path.splitext(os.path.basename(file))[0]
-            thumbs.append(Thumb(uid=fname, bytes=np.array([b for b in im.tobytes()], dtype=np.uint8), flipped=False))
-            thumbs.append(
-                Thumb(uid=fname,
-                      bytes=np.array([b for b in im.transpose(Image.FLIP_LEFT_RIGHT).tobytes()],
-                                     dtype=np.uint8),
-                      flipped=True))
-        except IOError:
-            pass
-    return thumbs
 
 
 def delta(b1: bytes, b2: bytes) -> int:
@@ -175,7 +146,7 @@ if __name__ == "__main__":
     print(f'Produced {len(slices_offsets)} slices and a {slices_matrix.shape} array of their bytes')
 
     print('Reading thumbnails')
-    thumbs = read_thumbs()
+    thumbs = read_thumbs(size=SIZE, mode=MODE, include_flips=True)
     thumbs_matrix = np.array([t.bytes for t in thumbs], dtype=np.uint8)
     print(f'Read {len(thumbs)} thumbnails of the right size and produced a {thumbs_matrix.shape} array of their bytes')
 

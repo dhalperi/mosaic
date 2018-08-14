@@ -32,7 +32,7 @@ def _actually_list_media_items(session):
     ret = []
     params = {
         'pageSize': 500,
-        'fields': 'mediaItems(id,baseUrl,mimeType),nextPageToken',
+        'fields': 'mediaItems(id,baseUrl,filename,mimeType),nextPageToken',
     }
     search_json = {
         "filters": {
@@ -84,7 +84,7 @@ def _download_image(session, queue, size):
 
 
 def download_images(session, media_items, size=SIZE):
-    concurrent = 10
+    concurrent = 30
     download_queue = queue.Queue(concurrent * 2)
     for i in range(16):
         t = Thread(target=lambda: _download_image(session, download_queue, size))
@@ -111,10 +111,10 @@ def list_media_items(session):
 
 
 def delete_unknown_files(media_items, size=SIZE):
-    known_files = set(f"thumbs/{m['id']}.{size}" for m in media_items)
-    files = set(f'thumbs/{f}' for f in os.listdir('thumbs') if f.endswith(f'.{size}'))
-    print(len(files - known_files), 'to delete')
-    for f in files - known_files:
+    known_ids = set(m['id'] for m in media_items)
+    to_delete = set(f'thumbs/{f}' for f in os.listdir('thumbs') if os.path.splitext(f)[0] not in known_ids)
+    print(len(to_delete), 'to delete')
+    for f in to_delete:
         os.unlink(f)
 
 

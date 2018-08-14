@@ -3,12 +3,15 @@ import json
 import os
 import subprocess
 from collections import defaultdict
+from typing import Any, Dict, List, Set, Tuple
 
+import numpy as np
 from PIL import Image
 from google.auth.transport.requests import AuthorizedSession
 from google.oauth2.credentials import Credentials
+from scipy.spatial.distance import pdist
 
-SIZE = 16
+from lib import Thumb, read_thumbs
 
 
 def load_media_items():
@@ -16,11 +19,12 @@ def load_media_items():
         return json.load(infile)
 
 
-def get_hashes(media_items):
+def get_hashes(media_items: List[Dict], size: int) -> Dict[str, Set[str]]:
+    """Computes a map from image hash (in given size) to image ID."""
     hashes = defaultdict(set)
     for m in media_items:
         mid = m['id']
-        fname = f'thumbs/{mid}.{SIZE}'
+        fname = f'thumbs/{mid}.{size}'
         try:
             im = Image.open(fname)
         except IOError:
@@ -34,14 +38,38 @@ def get_hashes(media_items):
     return hashes
 
 
-def get_dupes_info(session, dupes):
+def idx_to_ij(idx, N):
+    assert N > 0
+    i = 0
+    while idx >= N - i - 1:
+        idx -= N - i - 1
+        i += 1
+    return i, idx + i + 1
+
+
+def get_similar_images(thumbs: List[Thumb]) -> List[Tuple[str, str]]:
+    print(f'Computing pairwise distances among {len(thumbs)} images')
+    data = np.array([t.bytes for t in thumbs])
+    dist = pdist(data)
+
+    N = 100
+    print(f'Picking the {N} smallest pairs')
+    min_idx = np.argpartition(dist, N)[:N]
+    return [(thumbs[i].uid, thumbs[j].uid) for i, j in [idx_to_ij(v, len(thumbs)) for v in min_idx[:N]]]
+
+
+def get_dupes_info(session: AuthorizedSession, dupes: List[Set[str]]) -> List[List[Dict[str, Any]]]:
     out = []
     for dupe in dupes:
         cur = []
         for mid in dupe:
             info = session.get(f'https://photoslibrary.googleapis.com/v1/mediaItems/{mid}').json()
             if info.get('error', {}).get('code') == 404:
-                os.unlink(f'thumbs/{mid}.{SIZE}')
+                # Delete all versions of that image, in any size
+                for filename in os.listdir('thumbs/'):
+                    if filename.startswith(mid):
+                        print(f'Deleting {filename}')
+                        os.unlink(f'thumbs/{filename}')
             else:
                 cur.append(info)
         if len(cur) > 1:
@@ -51,11 +79,21 @@ def get_dupes_info(session, dupes):
     return out
 
 
-if __name__ == "__main__":
+def main():
     media_items = load_media_items()
-    hashes = get_hashes(media_items)
+    SIZE = 16
+
+    # First, look for dupes based on image content hashes themselves. Exact matches only.
+    hashes = get_hashes(media_items, size=SIZE)
     dupes = [ids for ids in hashes.values() if len(ids) > 1]
-    print('Found', sum(map(len, dupes)) - len(dupes), 'likely dupes')
+    if dupes:
+        print('Found', sum(map(len, dupes)) - len(dupes), 'likely dupes based on hashes')
+    else:
+        print('No hash-based dupes found, trying dist-based dupes')
+        print('Reading thumbnails')
+        thumbs = read_thumbs(36, 'L')
+        print(f'Read {len(thumbs)} thumbnails')
+        dupes = get_similar_images(thumbs)
 
     credentials = Credentials.from_authorized_user_file('photos-creds2.json')
     session = AuthorizedSession(credentials)
@@ -70,14 +108,21 @@ if __name__ == "__main__":
         a = d[0]
         b = d[1]
 
-        a_base = a['filename'].split('.')[0]
-        b_base = b['filename'].split('.')[0]
-        if b_base in a_base and a_base not in b_base:
-            print(i, a['filename'], 'contains', b['filename'], a['productUrl'])
-        elif a_base in b_base and b_base not in a_base:
-            print(i, b['filename'], 'contains', a['filename'], b['productUrl'])
-        elif a['filename'] == b['filename']:
-            subprocess.call(['/usr/bin/open', a['productUrl']])
-            subprocess.call(['/usr/bin/open', b['productUrl']])
-        else:
-            print(i, 'unknown')
+        try:
+            a_base = a['filename'].split('.')[0].lower()
+            b_base = b['filename'].split('.')[0].lower()
+            if b_base in a_base and a_base not in b_base:
+                print(i, a['filename'], 'contains', b['filename'], a['productUrl'])
+            elif a_base in b_base and b_base not in a_base:
+                print(i, b['filename'], 'contains', a['filename'], b['productUrl'])
+            elif a['filename'].lower() == b['filename'].lower():
+                subprocess.call(['/usr/bin/open', a['productUrl']])
+                subprocess.call(['/usr/bin/open', b['productUrl']])
+            else:
+                print(i, 'unknown')
+        except Exception as e:
+            print(a, b, e)
+
+
+if __name__ == "__main__":
+    main()

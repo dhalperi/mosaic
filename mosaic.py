@@ -110,7 +110,7 @@ def list_media_items(session):
         return media_items
 
 
-def delete_unknown_files(media_items, size=SIZE):
+def delete_unknown_files(media_items):
     known_ids = set(m['id'] for m in media_items)
     to_delete = set(f'thumbs/{f}' for f in os.listdir('thumbs') if os.path.splitext(f)[0] not in known_ids)
     print(len(to_delete), 'to delete')
@@ -126,4 +126,4 @@ if __name__ == "__main__":
     print('Read', len(media_items), 'media items')
     size = 36
     download_images(session, media_items, size=size)
-    delete_unknown_files(media_items, size=size)
+    delete_unknown_files(media_items)

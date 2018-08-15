@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import re
 import subprocess
 from collections import defaultdict
 from typing import Any, Dict, List, Set, Tuple
@@ -50,7 +51,7 @@ def idx_to_ij(idx, N):
 def get_similar_images(thumbs: List[Thumb]) -> List[Tuple[str, str]]:
     print(f'Computing pairwise distances among {len(thumbs)} images')
     data = np.array([t.bytes for t in thumbs])
-    dist = pdist(data)
+    dist = pdist(data, 'correlation')
 
     N = 100
     print(f'Picking the {N} smallest pairs')
@@ -74,8 +75,6 @@ def get_dupes_info(session: AuthorizedSession, dupes: List[Set[str]]) -> List[Li
                 cur.append(info)
         if len(cur) > 1:
             out.append(cur)
-        if len(out) >= 50:
-            break
     return out
 
 
@@ -118,6 +117,10 @@ def main():
             elif a['filename'].lower() == b['filename'].lower():
                 subprocess.call(['/usr/bin/open', a['productUrl']])
                 subprocess.call(['/usr/bin/open', b['productUrl']])
+            elif re.match(r'.*-.*-.*-.*.JPG', a['filename']):
+                print(i, a['filename'], 'ruins', b['filename'], a['productUrl'])
+            elif re.match(r'.*-.*-.*-.*.JPG', b['filename']):
+                print(i, b['filename'], 'ruins', a['filename'], b['productUrl'])
             else:
                 print(i, 'unknown')
         except Exception as e:

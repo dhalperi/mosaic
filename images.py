@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 from scipy.spatial.distance import cdist, cityblock
 
-from .lib import read_thumbs
+from lib import read_thumbs
 
 SIZE = 36
 OUTPUT_SIZE = 64

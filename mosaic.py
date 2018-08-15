@@ -32,7 +32,7 @@ def _actually_list_media_items(session):
     ret = []
     params = {
         'pageSize': 500,
-        'fields': 'mediaItems(id,baseUrl,filename,mimeType),nextPageToken',
+        'fields': 'mediaItems(id,baseUrl,filename,mimeType,productUrl),nextPageToken',
     }
     search_json = {
         "filters": {

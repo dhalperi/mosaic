@@ -110,30 +110,41 @@ def compute_matches_greedy_matching(dist: np.ndarray) -> Dict[int, int]:
 
     Iteratively picks the smallest entries in the distance array that correspond to unmatched rows and columns."""
 
+    # Shrink the input distance array by two, picking the better for each of the mirrors.
+    L, T = dist.shape
+    dist_shrunk = np.amin(np.resize(dist, (L // 2, 2, T)), 1)
+    print(dist_shrunk.shape)
+
     print('Reshaping dist into a 1-D array')
-    dist_1d = np.reshape(dist, (dist.size, 1))
+    dist_1d = np.reshape(dist_shrunk, (dist_shrunk.size, 1))
 
     print('Sorting dist')
-    min_idx_1d = np.argsort(dist_1d, axis=0)
-    min_idx = np.array(np.unravel_index(min_idx_1d, dist.shape)).T[0]
+    min_idx_1d = np.argsort(dist_1d, axis=0, kind='stable')
+    min_idx = np.array(np.unravel_index(min_idx_1d, dist_shrunk.shape)).T[0]
 
     print('Matching')
     count = 0
     matches = {}
     used = set()
-    break_at = min(dist.shape)
+    break_at = min(dist_shrunk.shape)
     for (i, j) in min_idx:
         count += 1
         if count & 0xFFFFF == 0:
-            print(count, len(used))
-        i = int(i)
+            print(count, len(matches))
         j = int(j)
-        idx = i & 0xFFFFFFFE  # mask out bottom bit to indicate flipping
-        if idx not in used and j not in matches:
-            matches[j] = i
-            used.add(idx)
-            if len(matches) >= break_at:
-                break
+        if j in matches:
+            continue
+        i = int(i)
+        if i in used:
+            continue
+        if dist_shrunk[i, j] == dist[2 * i, j]:
+            matches[j] = 2 * i
+        else:
+            assert dist_shrunk[i, j] == dist[2 * i + 1, j]
+            matches[j] = 2 * i + 1
+        used.add(i)
+        if len(matches) >= break_at:
+            break
     return matches
 
 

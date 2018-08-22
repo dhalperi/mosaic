@@ -163,21 +163,21 @@ if __name__ == "__main__":
     print(f'Read {len(thumbs)} thumbnails of the right size and produced a {thumbs_matrix.shape} array of their bytes')
 
     # Compute distance based on the given metric, or load cached distance
-    if not os.path.exists(f'dist-{METRIC}.npy'):
+    if not os.path.exists(f'dist-{METRIC}-{DIFF_SIZE}.npy'):
         print('Computing distances')
         dist = compute_dist(thumbs_matrix, slices_matrix)
         print('Computed a', dist.shape, 'array of distances')
-        np.save(f'dist-{METRIC}.npy', dist)
+        np.save(f'dist-{METRIC}-{DIFF_SIZE}.npy', dist)
     else:
-        dist = np.load(f'dist-{METRIC}.npy')
+        dist = np.load(f'dist-{METRIC}-{DIFF_SIZE}.npy')
 
     # Compute matches, or load cached matches
-    if not os.path.exists(f'matches-{METRIC}.out'):
+    if not os.path.exists(f'matches-{METRIC}-{DIFF_SIZE}.out'):
         matches = compute_matches_greedy_matching(dist)
-        with open(f'matches-{METRIC}.out', 'w') as outfile:
+        with open(f'matches-{METRIC}-{DIFF_SIZE}.out', 'w') as outfile:
             json.dump(matches, outfile)
     else:
-        with open(f'matches-{METRIC}.out', 'r') as infile:
+        with open(f'matches-{METRIC}-{DIFF_SIZE}.out', 'r') as infile:
             matches = {int(i): j for i, j in json.load(infile).items()}
 
     # Assemble the mosaic from all the chosen tiles
@@ -202,4 +202,4 @@ if __name__ == "__main__":
     blended = Image.blend(mosaic, target, alpha / 100)
 
     print('Saving produced mosaic')
-    blended.save(f'output/output-{MODE}-{METRIC}.jpg')
+    blended.save(f'output/output-{MODE}-{METRIC}-{DIFF_SIZE}.jpg')

@@ -187,7 +187,10 @@ if __name__ == "__main__":
     for i, j in matches.items():
         (x, y) = slices_offsets[i]
         thumb = thumbs[j]
-        data = np.array([b for b in Image.open(f'thumbs/{thumb.uid}.{TILE_SIZE}').convert(MODE).tobytes()])
+        thumb_img = Image.open(f'thumbs/{thumb.uid}.{TILE_SIZE}').convert(MODE)
+        if thumb.flipped:
+            thumb_img = thumb_img.transpose(Image.FLIP_LEFT_RIGHT)
+        data = np.array([b for b in thumb_img.tobytes()])
         match = produce_output_tile(data, slices_data[i], x, y)
         px = x * TILE_SIZE
         py = y * TILE_SIZE

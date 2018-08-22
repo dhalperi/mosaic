@@ -124,6 +124,6 @@ if __name__ == "__main__":
     # session = get_session()
     media_items = list_media_items(session)
     print('Read', len(media_items), 'media items')
-    size = 36
+    size = 64
     download_images(session, media_items, size=size)
     delete_unknown_files(media_items)

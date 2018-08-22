@@ -20,16 +20,21 @@ def load_media_items():
         return json.load(infile)
 
 
-def get_hashes(media_items: List[Dict], size: int) -> Dict[str, Set[str]]:
+def get_hashes(media_items: List[Dict], size: int, resize: int = None, mode: str = 'L') -> Dict[str, Set[str]]:
     """Computes a map from image hash (in given size) to image ID."""
     hashes = defaultdict(set)
     for m in media_items:
         mid = m['id']
         fname = f'thumbs/{mid}.{size}'
         try:
-            im = Image.open(fname)
+            im = Image.open(fname).convert(mode)
         except IOError:
             continue
+        if im.size != (size, size):
+            print(f'Image {mid} has size {im.size} and is_animated: {im.is_animated}')
+            continue
+        if resize is not None:
+            im = im.resize((resize, resize))
         data = im.tobytes()
         if len(data) > 0:
             hash = hashlib.md5()
@@ -53,7 +58,7 @@ def get_similar_images(thumbs: List[Thumb]) -> List[Tuple[str, str]]:
     data = np.array([t.bytes for t in thumbs])
     dist = pdist(data, 'correlation')
 
-    N = 100
+    N = 200
     print(f'Picking the {N} smallest pairs')
     min_idx = np.argpartition(dist, N)[:N]
     return [(thumbs[i].uid, thumbs[j].uid) for i, j in [idx_to_ij(v, len(thumbs)) for v in min_idx[:N]]]
@@ -80,17 +85,18 @@ def get_dupes_info(session: AuthorizedSession, dupes: List[Set[str]]) -> List[Li
 
 def main():
     media_items = load_media_items()
-    SIZE = 16
+    ORIG_SIZE = 64
+    COMPARE_SIZE = 16
 
     # First, look for dupes based on image content hashes themselves. Exact matches only.
-    hashes = get_hashes(media_items, size=SIZE)
+    hashes = get_hashes(media_items, size=ORIG_SIZE, resize=COMPARE_SIZE)
     dupes = [ids for ids in hashes.values() if len(ids) > 1]
     if dupes:
         print('Found', sum(map(len, dupes)) - len(dupes), 'likely dupes based on hashes')
     else:
         print('No hash-based dupes found, trying dist-based dupes')
         print('Reading thumbnails')
-        thumbs = read_thumbs(36, 'L')
+        thumbs = read_thumbs(ORIG_SIZE, 'L', resize=COMPARE_SIZE)
         print(f'Read {len(thumbs)} thumbnails')
         dupes = get_similar_images(thumbs)
 
@@ -110,7 +116,11 @@ def main():
         try:
             a_base = a['filename'].split('.')[0].lower()
             b_base = b['filename'].split('.')[0].lower()
-            if b_base in a_base and a_base not in b_base:
+            if a_base + '_orig' == b_base:
+                print(i, a['filename'], 'is modified of', b['filename'], a['productUrl'])
+            elif b_base + '_orig' == a_base:
+                print(i, b['filename'], 'is modified of', a['filename'], b['productUrl'])
+            elif b_base in a_base and a_base not in b_base:
                 print(i, a['filename'], 'contains', b['filename'], a['productUrl'])
             elif a_base in b_base and b_base not in a_base:
                 print(i, b['filename'], 'contains', a['filename'], b['productUrl'])

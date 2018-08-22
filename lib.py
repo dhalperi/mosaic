@@ -11,7 +11,7 @@ class Thumb(NamedTuple):
     flipped: bool
 
 
-def read_thumbs(size, mode='L', include_flips=False) -> List[Thumb]:
+def read_thumbs(size, mode='L', include_flips=False, resize=None) -> List[Thumb]:
     """Read all the thumbnails of the specified size in the given directory.
 
     Each image is returned twice, once flipped horizontally."""
@@ -24,6 +24,8 @@ def read_thumbs(size, mode='L', include_flips=False) -> List[Thumb]:
             if im.size != (size, size):
                 print(f'Image {file} has size {im.size} and is_animated: {im.is_animated}')
                 continue
+            if resize is not None:
+                im = im.resize((resize, resize))
             fname = os.path.splitext(os.path.basename(file))[0]
             thumbs.append(Thumb(uid=fname, bytes=np.frombuffer(im.tobytes(), dtype=np.uint8), flipped=False))
             if include_flips:

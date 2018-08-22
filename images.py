@@ -8,8 +8,8 @@ from scipy.spatial.distance import cdist, cityblock
 
 from lib import read_thumbs
 
-SIZE = 36
-OUTPUT_SIZE = 64
+DIFF_SIZE = 36
+TILE_SIZE = 64
 MODE = 'L'  # L = grayscale
 # Metric is tough.
 # L2 is "standard", but looks like L1 is better according to at least one study.
@@ -23,7 +23,7 @@ METRIC = 'correlation'
 def compute_dist(thumbs_matrix: np.ndarray, slices_matrix: np.ndarray) -> np.ndarray:
     if METRIC == 'cityblock':
         raw_metric = cdist(thumbs_matrix, slices_matrix, 'cityblock')
-        return (raw_metric / SIZE).astype(np.uint16)
+        return (raw_metric / DIFF_SIZE).astype(np.uint16)
     elif METRIC == 'correlation':
         raw_metric = cdist(thumbs_matrix, slices_matrix, 'correlation')
         return (raw_metric * 2 ** 14).astype(np.uint16)
@@ -67,12 +67,13 @@ def slice_target(im: Image) -> Tuple[List[Tuple[int, int]], List[np.ndarray]]:
     positions = []
     data = []
     (w, h) = im.size
-    for i in range(0, w // SIZE):
-        for j in range(0, h // SIZE):
+    for i in range(0, w // DIFF_SIZE):
+        for j in range(0, h // DIFF_SIZE):
             positions.append((i, j))
-            pi = i * SIZE
-            pj = j * SIZE
-            data.append(np.array([b for b in im.crop((pi, pj, pi + SIZE, pj + SIZE)).tobytes()], dtype=np.uint8))
+            pi = i * DIFF_SIZE
+            pj = j * DIFF_SIZE
+            data.append(
+                np.array([b for b in im.crop((pi, pj, pi + DIFF_SIZE, pj + DIFF_SIZE)).tobytes()], dtype=np.uint8))
 
     return positions, data
 
@@ -146,7 +147,7 @@ if __name__ == "__main__":
     print(f'Produced {len(slices_offsets)} slices and a {slices_matrix.shape} array of their bytes')
 
     print('Reading thumbnails')
-    thumbs = read_thumbs(size=SIZE, mode=MODE, include_flips=True)
+    thumbs = read_thumbs(size=TILE_SIZE, mode=MODE, include_flips=True, resize=DIFF_SIZE)
     thumbs_matrix = np.array([t.bytes for t in thumbs], dtype=np.uint8)
     print(f'Read {len(thumbs)} thumbnails of the right size and produced a {thumbs_matrix.shape} array of their bytes')
 
@@ -170,17 +171,17 @@ if __name__ == "__main__":
 
     # Assemble the mosaic from all the chosen tiles
     print('Assembling mosaic')
-    output_size = (target.size[0] // SIZE * OUTPUT_SIZE, target.size[1] // SIZE * OUTPUT_SIZE)
+    output_size = (target.size[0] // DIFF_SIZE * TILE_SIZE, target.size[1] // DIFF_SIZE * TILE_SIZE)
     mosaic = Image.new(MODE, output_size)
     for i, j in matches.items():
         (x, y) = slices_offsets[i]
         thumb = thumbs[j]
-        data = np.array([b for b in Image.open(f'thumbs/{thumb.uid}.{OUTPUT_SIZE}').convert(MODE).tobytes()])
+        data = np.array([b for b in Image.open(f'thumbs/{thumb.uid}.{TILE_SIZE}').convert(MODE).tobytes()])
         match = produce_output_tile(data, slices_data[i], x, y)
-        px = x * OUTPUT_SIZE
-        py = y * OUTPUT_SIZE
-        mosaic.paste(Image.frombytes(MODE, (OUTPUT_SIZE, OUTPUT_SIZE), match),
-                     (px, py, px + OUTPUT_SIZE, py + OUTPUT_SIZE))
+        px = x * TILE_SIZE
+        py = y * TILE_SIZE
+        mosaic.paste(Image.frombytes(MODE, (TILE_SIZE, TILE_SIZE), match),
+                     (px, py, px + TILE_SIZE, py + TILE_SIZE))
 
     # Do a slight blending of assembled mosaic and target image to make it look better
     print('Blending mosaic and target')

@@ -99,12 +99,6 @@ def match(slice: bytes, thumbs: Dict[str, bytes]) -> str:
     return curid
 
 
-def compute_matches_best_repeats(dist: np.ndarray) -> Dict[int, int]:
-    """Computes a trivial matching by picking the thumbnail that best matches each tile, with repeats"""
-    best_matches = np.argmin(dist, axis=0)
-    return dict(enumerate(best_matches))
-
-
 def compute_matches_greedy_matching(dist: np.ndarray) -> Dict[int, int]:
     """Computes a greedy matching with no repeats.
 

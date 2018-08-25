@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from typing import Dict, List, Tuple
 
 import numpy as np
@@ -141,6 +142,9 @@ def compute_matches_greedy_matching(dist: np.ndarray) -> Dict[int, int]:
             break
     return matches
 
+def get_file_create_time(path):
+    return time.localtime(os.path.getmtime(path))
+
 
 if __name__ == "__main__":
     print('Reading and slicing target')
@@ -151,27 +155,32 @@ if __name__ == "__main__":
     slices_matrix = np.array(slices_data, dtype=np.uint8)
     print(f'Produced {len(slices_offsets)} slices and a {slices_matrix.shape} array of their bytes')
 
-    print('Reading thumbnails')
+    mtime = get_file_create_time('media_items.json')
+    print('Reading thumbnails from media_items.json updated at', time.asctime(mtime))
     thumbs = read_thumbs(size=TILE_SIZE, mode=MODE, include_flips=True, resize=DIFF_SIZE)
     thumbs_matrix = np.array([t.bytes for t in thumbs], dtype=np.uint8)
     print(f'Read {len(thumbs)} thumbnails of the right size and produced a {thumbs_matrix.shape} array of their bytes')
 
     # Compute distance based on the given metric, or load cached distance
-    if not os.path.exists(f'dist-{METRIC}-{DIFF_SIZE}.npy'):
+    dist_filename = f'dist-{METRIC}-{DIFF_SIZE}.npy'
+    if not os.path.exists(dist_filename) or get_file_create_time(dist_filename) < mtime:
         print('Computing distances')
         dist = compute_dist(thumbs_matrix, slices_matrix)
         print('Computed a', dist.shape, 'array of distances')
-        np.save(f'dist-{METRIC}-{DIFF_SIZE}.npy', dist)
+        np.save(dist_filename, dist)
     else:
-        dist = np.load(f'dist-{METRIC}-{DIFF_SIZE}.npy')
+        print('Loading existing distances from', dist_filename)
+        dist = np.load(dist_filename)
 
     # Compute matches, or load cached matches
-    if not os.path.exists(f'matches-{METRIC}-{DIFF_SIZE}.out'):
+    matches_filename = f'matches-{METRIC}-{DIFF_SIZE}.out'
+    if not os.path.exists(matches_filename) or get_file_create_time(matches_filename) < mtime:
         matches = compute_matches_greedy_matching(dist)
-        with open(f'matches-{METRIC}-{DIFF_SIZE}.out', 'w') as outfile:
+        with open(matches_filename, 'w') as outfile:
             json.dump(matches, outfile)
     else:
-        with open(f'matches-{METRIC}-{DIFF_SIZE}.out', 'r') as infile:
+        print('Loading existing matches from', matches_filename)
+        with open(matches_filename, 'r') as infile:
             matches = {int(i): j for i, j in json.load(infile).items()}
 
     # Assemble the mosaic from all the chosen tiles

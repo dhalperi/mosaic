@@ -207,5 +207,6 @@ if __name__ == "__main__":
         target = target.resize(output_size)
     blended = Image.blend(mosaic, target, alpha / 100)
 
-    print('Saving produced mosaic')
-    blended.save(f'output/output-{MODE}-{METRIC}-{DIFF_SIZE}.jpg')
+    output_filename = f'output/output-{MODE}-{METRIC}-{DIFF_SIZE}.jpg'
+    print('Saving produced mosaic to', output_filename)
+    blended.save(output_filename)

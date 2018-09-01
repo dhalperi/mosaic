@@ -8,9 +8,6 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from requests import HTTPError
 
-SIZE = 36
-
-
 def get_session():
     flow = Flow.from_client_secrets_file(
         'app-creds.json',
@@ -31,10 +28,10 @@ def get_session():
 def _actually_list_media_items(session):
     ret = []
     params = {
-        'pageSize': 500,
         'fields': 'mediaItems(id,baseUrl,filename,mimeType,productUrl),nextPageToken',
     }
     search_json = {
+        "pageSize": 100,
         "filters": {
             "includeArchivedMedia": False,
             "contentFilter": {
@@ -52,8 +49,12 @@ def _actually_list_media_items(session):
     while True:
         rsp = session.post(
             'https://photoslibrary.googleapis.com/v1/mediaItems:search',
-            params=params, json=search_json,
+            params=params,
+            json=search_json,
         ).json()
+        if 'error' in rsp:
+            print(rsp)
+            sdflkjfsdlksdfj
 
         cur = [m for m in rsp.get('mediaItems', [])]
         ret += cur
@@ -83,7 +84,7 @@ def _download_image(session, queue, size):
         queue.task_done()
 
 
-def download_images(session, media_items, size=SIZE):
+def download_images(session, media_items, size=64):
     concurrent = 30
     download_queue = queue.Queue(concurrent * 2)
     for i in range(16):
@@ -124,6 +125,6 @@ if __name__ == "__main__":
     # session = get_session()
     media_items = list_media_items(session)
     print('Read', len(media_items), 'media items')
-    size = 64
+    size = 128
     download_images(session, media_items, size=size)
     delete_unknown_files(media_items)

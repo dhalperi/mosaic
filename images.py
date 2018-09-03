@@ -114,7 +114,7 @@ def compute_matches_greedy_matching(dist: np.ndarray) -> Dict[int, int]:
     dist_1d = np.reshape(dist_shrunk, (dist_shrunk.size, 1))
 
     print('Sorting dist')
-    min_idx_1d = np.argsort(dist_1d, axis=0, kind='stable')
+    min_idx_1d = np.argsort(dist_1d, axis=0)
     min_idx = np.array(np.unravel_index(min_idx_1d, dist_shrunk.shape)).T[0]
 
     print('Matching')

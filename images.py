@@ -9,8 +9,8 @@ from scipy.spatial.distance import cdist, cityblock
 
 from lib import read_thumbs
 
-DIFF_SIZE = 36
-TILE_SIZE = 64
+DIFF_SIZE = 28
+TILE_SIZE = 128
 MODE = 'L'  # L = grayscale
 # Metric is tough.
 # L2 is "standard", but looks like L1 is better according to at least one study.
@@ -169,6 +169,7 @@ if __name__ == "__main__":
         dist = compute_dist(thumbs_matrix, slices_matrix)
         print('Computed a', dist.shape, 'array of distances')
         np.save(dist_filename, dist)
+        dist.tofile(f'dist-{METRIC}-{DIFF_SIZE}.bin')
     else:
         print('Loading existing distances from', dist_filename)
         dist = np.load(dist_filename)
@@ -194,7 +195,7 @@ if __name__ == "__main__":
         thumb_img = Image.open(f'thumbs/{thumb.uid}.{TILE_SIZE}').convert(MODE)
         if thumb.flipped:
             thumb_img = thumb_img.transpose(Image.FLIP_LEFT_RIGHT)
-        data = np.array([b for b in thumb_img.tobytes()])
+        data = np.frombuffer(thumb_img.tobytes(), dtype=np.uint8)
         match = produce_output_tile(data, slices_data[i], x, y)
         px = x * TILE_SIZE
         py = y * TILE_SIZE
@@ -203,7 +204,7 @@ if __name__ == "__main__":
 
     # Do a slight blending of assembled mosaic and target image to make it look better
     print('Blending mosaic and target')
-    alpha = 15
+    alpha = 10
     if target.size != output_size:
         target = target.resize(output_size)
     blended = Image.blend(mosaic, target, alpha / 100)
@@ -211,3 +212,10 @@ if __name__ == "__main__":
     output_filename = f'output/output-{MODE}-{METRIC}-{DIFF_SIZE}.jpg'
     print('Saving produced mosaic to', output_filename)
     blended.save(output_filename)
+
+    target_int16 = np.frombuffer(target.tobytes(), dtype=np.uint8).astype(np.int16)
+    mosaic_int16 = np.frombuffer(mosaic.tobytes(), dtype=np.uint8).astype(np.int16)
+    diff = np.abs(target_int16 - mosaic_int16).astype(np.uint8)
+    print(np.sum(diff))
+    xored = Image.frombytes(MODE, target.size, diff)
+    xored.save(f'output/output-{MODE}-{METRIC}-{DIFF_SIZE}-xor.jpg')

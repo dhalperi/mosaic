@@ -87,6 +87,8 @@ def _download_image(session, queue, size):
                 except HTTPError as e:
                     print(e)
                     os.unlink(outfile)
+        else:
+            print(f"Skipping {m} since {m.get('mimeType','')} is not 'image/'")
         queue.task_done()
 
 

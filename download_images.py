@@ -95,7 +95,7 @@ def _download_image(session, queue, size):
 def download_images(session, media_items, size=64):
     concurrent = 30
     download_queue = queue.Queue(concurrent * 2)
-    for i in range(16):
+    for i in range(concurrent):
         t = Thread(target=lambda: _download_image(session, download_queue, size))
         t.daemon = True
         t.start()

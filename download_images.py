@@ -92,7 +92,7 @@ def _download_image(session, queue, size):
         queue.task_done()
 
 
-def download_images(session, media_items, size=64):
+def download_images(session, media_items, size):
     concurrent = 30
     download_queue = queue.Queue(concurrent * 2)
     for i in range(concurrent):

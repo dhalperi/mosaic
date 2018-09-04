@@ -43,7 +43,12 @@ def _actually_list_media_items(session):
                     "UTILITY",
                     "WHITEBOARDS",
                 ]
-            }
+            },
+            "mediaTypeFilter": {
+                "mediaTypes": [
+                    "PHOTO",
+                ],
+            },
         },
     }
 

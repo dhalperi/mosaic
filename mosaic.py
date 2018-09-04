@@ -8,6 +8,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from requests import HTTPError
 
+
 def get_session():
     flow = Flow.from_client_secrets_file(
         'app-creds.json',

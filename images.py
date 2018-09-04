@@ -216,6 +216,6 @@ if __name__ == "__main__":
     target_int16 = np.frombuffer(target.tobytes(), dtype=np.uint8).astype(np.int16)
     mosaic_int16 = np.frombuffer(mosaic.tobytes(), dtype=np.uint8).astype(np.int16)
     diff = np.abs(target_int16 - mosaic_int16).astype(np.uint8)
-    print(np.sum(diff))
+    print(f'Picture delta: {np.sum(diff) / output_size[0] / output_size[1]} per pixel')
     xored = Image.frombytes(MODE, target.size, diff)
     xored.save(f'output/output-{MODE}-{METRIC}-{DIFF_SIZE}-xor.jpg')

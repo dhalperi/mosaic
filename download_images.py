@@ -100,11 +100,15 @@ def download_images(session, media_items, size):
         t.daemon = True
         t.start()
     used_ids = set()
+    skip_count = 0
     for m in media_items:
         if m['id'] not in used_ids:
             download_queue.put(m)
             used_ids.add(m['id'])
+        else:
+            skip_count += 1
     download_queue.join()
+    print(f'Downloaded {len(used_ids)} images ({skip_count} skipped)')
 
 
 def list_media_items(session):

@@ -5,24 +5,34 @@ from threading import Thread
 
 from google.auth.transport.requests import AuthorizedSession
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import Flow
+from google_auth_oauthlib.flow import InstalledAppFlow
 from requests import HTTPError
 
+import time
 
 def get_session():
-    flow = Flow.from_client_secrets_file(
+    flow = InstalledAppFlow.from_client_secrets_file(
         'app-creds.json',
         scopes=['https://www.googleapis.com/auth/photoslibrary.readonly',
                 'https://www.googleapis.com/auth/photoslibrary.sharing'],
         redirect_uri='urn:ietf:wg:oauth:2.0:oob')
 
-    auth_url, _ = flow.authorization_url(prompt='consent')
+    creds = flow.run_local_server()
 
-    print('Please go to this URL: {}'.format(auth_url))
-    code = input('Enter the authorization code: ')
-    token = flow.fetch_token(code=code)
-    print(json.dumps(token))
-    # print(json.dumps(flow.credentials))
+    creds_data = {
+        "token": creds.token,
+        "refresh_token": creds.refresh_token,
+        "token_uri": creds.token_uri,
+        "client_id": creds.client_id,
+        "client_secret": creds.client_secret,
+        "scopes": creds.scopes,
+    }
+
+    if True:
+        del creds_data["token"]
+        with open(f'photos-creds-{time.time()}.json', 'w') as out:
+            json.dump(creds_data, out)
+
     return flow.authorized_session()
 
 
@@ -60,7 +70,9 @@ def _actually_list_media_items(session):
         ).json()
         if 'error' in rsp:
             print(rsp)
-            sdflkjfsdlksdfj
+            if rsp['error'].get('code', 429) == 503:
+                continue
+            return ret
 
         cur = [m for m in rsp.get('mediaItems', [])]
         ret += cur
@@ -95,6 +107,7 @@ def _download_image(session, queue, size):
 def download_images(session, media_items, size):
     concurrent = 30
     download_queue = queue.Queue(concurrent * 2)
+    os.mkdir('thumbs')
     for i in range(concurrent):
         t = Thread(target=lambda: _download_image(session, download_queue, size))
         t.daemon = True
@@ -132,7 +145,7 @@ def delete_unknown_files(media_items):
 
 
 if __name__ == "__main__":
-    credentials = Credentials.from_authorized_user_file('photos-creds2.json')
+    credentials = Credentials.from_authorized_user_file('photos-creds-1590552107.93066.json')
     session = AuthorizedSession(credentials)
     # session = get_session()
     media_items = list_media_items(session)

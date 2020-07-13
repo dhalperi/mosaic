@@ -117,8 +117,14 @@ def compute_matches_scipy(dist: np.ndarray) -> Dict[int, int]:
     print(f"Resized to {dist_shrunk.shape}")
 
     import scipy.optimize
+
     row_ind, col_ind = scipy.optimize.linear_sum_assignment(dist_shrunk)
-    return dict(zip(col_ind, row_ind))
+    return dict(
+        (int(j), 2 * int(i))
+        if dist_shrunk[i][j] == dist[2 * i][j]
+        else (int(j), 2 * int(i) + 1)
+        for i, j in zip(row_ind, col_ind)
+    )
 
 
 def compute_matches_greedy_matching(dist: np.ndarray) -> Dict[int, int]:

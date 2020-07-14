@@ -16,10 +16,8 @@ MODE = "L"  # L = grayscale
 # Metric is tough.
 # L2 is "standard", but looks like L1 is better according to at least one study.
 # L1 does seem to look better in practice, but correlation (+shifting output) seems even better.
-# Seems like there ought to be another opportunity here -- since correlation overestimates
-#    ability to shift (w/clipping), but the L1-shifted implementation below seems not to work.
-#    ... and it's REALLY slow.
-METRIC = "correlation"
+# Correlation regularized by L2 seems best so far - it penalizes the amount of shifting needed.
+METRIC = "correlation-regularized"
 
 
 def compute_dist(thumbs_matrix: np.ndarray, slices_matrix: np.ndarray) -> np.ndarray:
@@ -29,6 +27,13 @@ def compute_dist(thumbs_matrix: np.ndarray, slices_matrix: np.ndarray) -> np.nda
     elif METRIC == "correlation":
         raw_metric = cdist(thumbs_matrix, slices_matrix, "correlation")
         return (raw_metric * 2 ** 14).astype(np.uint16)
+    elif METRIC == "correlation-regularized":
+        mean_thumb = np.mean(thumbs_matrix, 1).reshape((-1, 1))
+        mean_slice = np.mean(slices_matrix, 1).reshape((-1, 1))
+        mean = (cdist(mean_thumb, mean_slice, "sqeuclidean") / 2).astype(np.uint16)
+        corr = (cdist(thumbs_matrix, slices_matrix, "correlation") * 2 ** 14).astype(np.uint16)
+        ret = corr + mean
+        return ret
     elif METRIC == "euclidean":
         raw_metric = cdist(thumbs_matrix, slices_matrix, "euclidean")
         return raw_metric.astype(np.uint16)
@@ -56,7 +61,7 @@ def compute_dist(thumbs_matrix: np.ndarray, slices_matrix: np.ndarray) -> np.nda
 
 
 def produce_output_tile(thumb, target_tile, x, y):
-    if METRIC in ["correlation", "L1-shifted"]:
+    if METRIC in ["correlation", "correlation-regularized", "L1-shifted"]:
         thumb = thumb.astype(np.int16)
         P = 15
         pct = np.percentile(thumb, [P, 100 - P])

@@ -1,6 +1,7 @@
 import json
 import os
 import queue
+from pathlib import Path
 from threading import Thread
 from typing import Tuple
 
@@ -108,7 +109,8 @@ def _download_image(session, queue, size: Tuple[int, int]):
 def download_images(session, media_items, size: Tuple[int, int]):
     concurrent = 30
     download_queue = queue.Queue(concurrent * 2)
-    os.mkdir('thumbs')
+    thumbs = Path('thumbs')
+    thumbs.mkdir(exist_ok=True)
     for i in range(concurrent):
         t = Thread(target=lambda: _download_image(session, download_queue, size))
         t.daemon = True

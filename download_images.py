@@ -2,6 +2,7 @@ import json
 import os
 import queue
 from threading import Thread
+from typing import Tuple
 
 from google.auth.transport.requests import AuthorizedSession
 from google.oauth2.credentials import Credentials
@@ -85,15 +86,15 @@ def _actually_list_media_items(session):
     return ret
 
 
-def _download_image(session, queue, size):
+def _download_image(session, queue, size: Tuple[int, int]):
     while True:
         m = queue.get()
         if m.get('mimeType', '').startswith('image/'):
-            outfile = f"thumbs/{m['id']}.{size}"
+            outfile = f"thumbs/{m['id']}.{size[0]}-{size[1]}"
             if not os.path.exists(outfile) or os.stat(outfile).st_size == 0:
                 try:
                     with open(outfile, 'wb') as out:
-                        r = session.get(m['baseUrl'] + f'=w{size}-h{size}-c')
+                        r = session.get(m['baseUrl'] + f'=w{size[0]}-h{size[1]}-c')
                         r.raise_for_status()
                         out.write(r.content)
                 except HTTPError as e:
@@ -104,7 +105,7 @@ def _download_image(session, queue, size):
         queue.task_done()
 
 
-def download_images(session, media_items, size):
+def download_images(session, media_items, size: Tuple[int, int]):
     concurrent = 30
     download_queue = queue.Queue(concurrent * 2)
     os.mkdir('thumbs')
@@ -150,6 +151,6 @@ if __name__ == "__main__":
     # session = get_session()
     media_items = list_media_items(session)
     print('Read', len(media_items), 'media items')
-    size = 128
+    size = (256, 222)
     download_images(session, media_items, size=size)
     delete_unknown_files(media_items)

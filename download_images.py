@@ -32,8 +32,10 @@ def get_session():
 
     if True:
         del creds_data["token"]
-        with open(f'photos-creds-{time.time()}.json', 'w') as out:
+        saved_file = f'photos-creds-{time.time()}.json'
+        with open(saved_file, 'w') as out:
             json.dump(creds_data, out)
+        print(f"Next time use: {saved_file}")
 
     return flow.authorized_session()
 
@@ -148,7 +150,7 @@ def delete_unknown_files(media_items):
 
 
 if __name__ == "__main__":
-    credentials = Credentials.from_authorized_user_file('photos-creds-1590552107.93066.json')
+    credentials = Credentials.from_authorized_user_file('photos-creds-1599984851.344019.json')
     session = AuthorizedSession(credentials)
     # session = get_session()
     media_items = list_media_items(session)

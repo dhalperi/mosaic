@@ -1,0 +1,7 @@
+google-auth
+google-auth-oauthlib
+numpy
+Pillow
+pip-tools
+requests
+scipy

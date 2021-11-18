@@ -150,7 +150,7 @@ def delete_unknown_files(media_items):
 
 
 if __name__ == "__main__":
-    credentials = Credentials.from_authorized_user_file('photos-creds-1599984851.344019.json')
+    credentials = Credentials.from_authorized_user_file('photos-creds-1637212371.672071.json')
     session = AuthorizedSession(credentials)
     # session = get_session()
     media_items = list_media_items(session)

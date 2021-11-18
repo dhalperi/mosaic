@@ -31,7 +31,9 @@ def compute_dist(thumbs_matrix: np.ndarray, slices_matrix: np.ndarray) -> np.nda
         mean_thumb = np.mean(thumbs_matrix, 1).reshape((-1, 1))
         mean_slice = np.mean(slices_matrix, 1).reshape((-1, 1))
         mean = (cdist(mean_thumb, mean_slice, "sqeuclidean") / 2).astype(np.uint16)
-        corr = (cdist(thumbs_matrix, slices_matrix, "correlation") * 2 ** 14).astype(np.uint16)
+        corr = (cdist(thumbs_matrix, slices_matrix, "correlation") * 2 ** 14).astype(
+            np.uint16
+        )
         ret = corr + mean
         return ret
     elif METRIC == "euclidean":
@@ -86,8 +88,18 @@ def slice_target(
             pj = j * SLICE_SIZE
             cropped = im.crop((pi, pj, pi + SLICE_SIZE, pj + SLICE_SIZE))
             resized = cropped.resize((DIFF_SIZE, DIFF_SIZE))
-            data.append(np.array(list(cropped.tobytes()), dtype=np.uint8,))
-            data_diff.append(np.array(list(resized.tobytes()), dtype=np.uint8,))
+            data.append(
+                np.array(
+                    list(cropped.tobytes()),
+                    dtype=np.uint8,
+                )
+            )
+            data_diff.append(
+                np.array(
+                    list(resized.tobytes()),
+                    dtype=np.uint8,
+                )
+            )
 
     return positions, data, data_diff
 

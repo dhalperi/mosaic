@@ -5,3 +5,4 @@ Pillow
 pip-tools
 requests
 scipy
+torchvision

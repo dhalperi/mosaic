@@ -11,7 +11,8 @@ from requests import HTTPError
 
 import time
 
-def get_session():
+
+def get_session() -> AuthorizedSession:
     flow = InstalledAppFlow.from_client_secrets_file(
         'app-creds.json',
         scopes=['https://www.googleapis.com/auth/photoslibrary.readonly',
@@ -39,7 +40,7 @@ def get_session():
     return flow.authorized_session()
 
 
-def _actually_list_media_items(session):
+def _actually_list_media_items(session: AuthorizedSession):
     ret = []
     params = {
         'fields': 'mediaItems(id,baseUrl,filename,mimeType,productUrl),nextPageToken',
@@ -88,7 +89,7 @@ def _actually_list_media_items(session):
     return ret
 
 
-def _download_image(session, queue, size):
+def _download_image(session: AuthorizedSession, queue, size):
     while True:
         m = queue.get()
         if m.get('mimeType', '').startswith('image/'):
@@ -149,7 +150,7 @@ def delete_unknown_files(media_items):
 
 
 if __name__ == "__main__":
-    credentials = Credentials.from_authorized_user_file('photos-creds-1637212371.672071.json')
+    credentials = Credentials.from_authorized_user_file('photos-creds-1637217451.418922.json')
     session = AuthorizedSession(credentials)
     # session = get_session()
     media_items = list_media_items(session)

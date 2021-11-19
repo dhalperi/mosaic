@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import time
 from typing import Dict, List, Tuple
@@ -108,9 +109,9 @@ def compute_matches_scipy(dist: np.ndarray) -> Dict[int, int]:
     """Lets scipy compute the minimum cost matching based on the diff array."""
 
     # Shrink the input distance array by two, picking the better for each of the mirrors.
+    logging.info("Picking the better image of mirrored images")
     L, T = dist.shape
     dist_shrunk = np.amin(np.resize(dist, (L // 2, 2, T)), 1)
-    print(f"Resized to {dist_shrunk.shape}")
 
     import scipy.optimize
 
@@ -128,36 +129,43 @@ def get_file_create_time(path):
 
 
 if __name__ == "__main__":
-    print("Reading and slicing target")
+    logging.basicConfig(format="%(asctime)-15s %(message)s", level=logging.INFO)
+    logging.info("Reading and slicing target")
     target = Image.open("IMG_3178.JPG").convert(MODE)
     slices = slice_target(target)
     slices_offsets = slices[0]
     slices_data = slices[1]
     slices_matrix = np.array(slices_data, dtype=np.uint8)
     slices_diff_matrix = np.array(slices[2], dtype=np.uint8)
-    print(
-        f"Produced {len(slices_offsets)} slices and a {slices_matrix.shape} array of their bytes"
+    logging.info(
+        "Produced %s slices and a %s array of their bytes",
+        len(slices_offsets),
+        slices_matrix.shape,
     )
 
     mtime = get_file_create_time("media_items.json")
-    print("Reading thumbnails from media_items.json updated at", time.asctime(mtime))
+    logging.info(
+        "Reading thumbnails from media_items.json updated at %s", time.asctime(mtime)
+    )
     thumbs = read_thumbs(
         size=TILE_SIZE, mode=MODE, include_flips=True, resize=DIFF_SIZE
     )
     thumbs_matrix = np.array([t.bytes for t in thumbs], dtype=np.uint8)
-    print(
-        f"Read {len(thumbs)} thumbnails of the right size and produced a {thumbs_matrix.shape} array of their bytes"
+    logging.info(
+        "Read %s thumbnails of the right size and produced a %s array of their bytes",
+        len(thumbs),
+        thumbs_matrix.shape,
     )
 
     # Compute distance based on the given metric, or load cached distance
     dist_filename = f"dist-{METRIC}-{DIFF_SIZE}-{SLICE_SIZE}.npy"
     if not os.path.exists(dist_filename) or get_file_create_time(dist_filename) < mtime:
-        print("Computing distances")
+        logging.info("Computing distances")
         dist = compute_dist(thumbs_matrix, slices_diff_matrix)
-        print("Computed a", dist.shape, "array of distances")
+        logging.info("Computed a %s array of distances", dist.shape)
         np.save(dist_filename, dist)
     else:
-        print("Loading existing distances from", dist_filename)
+        logging.info("Loading existing distances from %s", dist_filename)
         dist = np.load(dist_filename)
 
     # Compute matches, or load cached matches
@@ -170,12 +178,12 @@ if __name__ == "__main__":
         with open(matches_filename, "w") as outfile:
             json.dump(matches, outfile)
     else:
-        print("Loading existing matches from", matches_filename)
+        logging.info("Loading existing matches from %s", matches_filename)
         with open(matches_filename, "r") as infile:
             matches = {int(i): j for i, j in json.load(infile).items()}
 
     # Assemble the mosaic from all the chosen tiles
-    print("Assembling mosaic")
+    logging.info("Assembling mosaic")
     output_size = (
         target.size[0] // SLICE_SIZE * TILE_SIZE,
         target.size[1] // SLICE_SIZE * TILE_SIZE,
@@ -197,7 +205,7 @@ if __name__ == "__main__":
         )
 
     # Do a slight blending of assembled mosaic and target image to make it look better
-    print("Blending mosaic and target")
+    logging.info("Blending mosaic and target")
     alpha = 10
     if target.size != output_size:
         target = target.resize(output_size)
@@ -206,12 +214,14 @@ if __name__ == "__main__":
     if not os.path.exists("output"):
         os.mkdir("output")
     output_filename = f"output/output-{MODE}-{METRIC}-{DIFF_SIZE}-{SLICE_SIZE}.jpg"
-    print("Saving produced mosaic to", output_filename)
+    logging.info("Saving produced mosaic to %s", output_filename)
     blended.save(output_filename)
 
     target_int16 = np.frombuffer(target.tobytes(), dtype=np.uint8).astype(np.int16)
     mosaic_int16 = np.frombuffer(mosaic.tobytes(), dtype=np.uint8).astype(np.int16)
     diff = np.abs(target_int16 - mosaic_int16).astype(np.uint8)
-    print(f"Picture delta: {np.sum(diff) / output_size[0] / output_size[1]} per pixel")
+    logging.info(
+        "Picture delta: %s per pixel", np.sum(diff) / output_size[0] / output_size[1]
+    )
     xored = Image.frombytes(MODE, target.size, diff)
     xored.save(f"output/output-{MODE}-{METRIC}-{DIFF_SIZE}-{SLICE_SIZE}-xor.jpg")

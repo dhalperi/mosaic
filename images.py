@@ -111,16 +111,15 @@ def compute_matches_scipy(dist: np.ndarray) -> Dict[int, int]:
     # Shrink the input distance array by two, picking the better for each of the mirrors.
     logging.info("Picking the better image of mirrored images")
     L, T = dist.shape
-    dist_shrunk = np.amin(np.resize(dist, (L // 2, 2, T)), 1)
+    reoriented = np.resize(dist, (L // 2, 2, T))
+    best_mirror = np.argmin(reoriented, 1)
+    dist_shrunk = np.amin(reoriented, 1)
 
     import scipy.optimize
 
     row_ind, col_ind = scipy.optimize.linear_sum_assignment(dist_shrunk)
     return dict(
-        (int(j), 2 * int(i))
-        if dist_shrunk[i][j] == dist[2 * i][j]
-        else (int(j), 2 * int(i) + 1)
-        for i, j in zip(row_ind, col_ind)
+        (int(j), 2 * int(i) + int(best_mirror[i][j])) for i, j in zip(row_ind, col_ind)
     )
 
 

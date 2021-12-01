@@ -84,7 +84,7 @@ def compute_dist_internal(
     raise ValueError(f"Unknown metric: {METRIC}")
 
 
-def produce_output_tile(thumb, target_tile, x, y):
+def produce_output_tile(thumb, target_tile):
     if METRIC in ["correlation", "correlation-regularized", "L1-shifted"]:
         thumb = thumb.astype(np.int16)
         P = 15
@@ -96,20 +96,23 @@ def produce_output_tile(thumb, target_tile, x, y):
 
 
 def slice_target(
-    im: Image,
-) -> Tuple[List[Tuple[int, int]], List[np.ndarray], List[np.ndarray]]:
+    im: Image, mask: np.ndarray
+) -> Tuple[List[Tuple[int, int]], List[np.ndarray], List[np.ndarray], List[bool]]:
     """Break the target image into SIZE x SIZE tiles and return a list of numpy arrays of their contents"""
+    assert im.width == mask.shape[1]  # image width, mask cols
+    assert im.height == mask.shape[0]  # image height, mask rows
     positions = []
     data = []
     data_diff = []
+    interesting = []
     (w, h) = im.size
-    for i in range(0, w // SLICE_SIZE):
-        for j in range(0, h // SLICE_SIZE):
-            positions.append((i, j))
-            pi = i * SLICE_SIZE
-            pj = j * SLICE_SIZE
-            cropped = im.crop((pi, pj, pi + SLICE_SIZE, pj + SLICE_SIZE))
+    for row in range(0, h // SLICE_SIZE):
+        for col in range(0, w // SLICE_SIZE):
+            px = col * SLICE_SIZE
+            py = row * SLICE_SIZE
+            cropped = im.crop((px, py, px + SLICE_SIZE, py + SLICE_SIZE))
             resized = cropped.resize((DIFF_SIZE, DIFF_SIZE))
+            positions.append((row, col))
             data.append(
                 np.array(
                     list(cropped.tobytes()),
@@ -122,44 +125,109 @@ def slice_target(
                     dtype=np.uint8,
                 )
             )
+            tile_masked = mask[py : py + SLICE_SIZE, px : px + SLICE_SIZE]
+            assert tile_masked.shape == (SLICE_SIZE, SLICE_SIZE)
+            interesting.append(
+                np.reshape(tile_masked, (SLICE_SIZE * SLICE_SIZE, 1)).sum() > 0
+            )
 
-    return positions, data, data_diff
+    return positions, data, data_diff, interesting
 
 
-def compute_matches_scipy(dist: np.ndarray) -> Dict[int, int]:
+def compute_matches_scipy(dist: np.ndarray, interesting: List[bool]) -> Dict[int, int]:
     """Lets scipy compute the minimum cost matching based on the diff array."""
 
     # Shrink the input distance array by two, picking the better for each of the mirrors.
     logging.info("Picking the better image of mirrored images")
     L, T = dist.shape
-    reoriented = np.resize(dist, (L // 2, 2, T))
+    reoriented = np.reshape(dist, (L // 2, 2, T))
     best_mirror = np.argmin(reoriented, 1)
     dist_shrunk = np.amin(reoriented, 1)
 
+    logging.info("Optimizing for the interesting slices")
     import scipy.optimize
 
-    row_ind, col_ind = scipy.optimize.linear_sum_assignment(dist_shrunk)
-    return dict(
-        (int(j), 2 * int(i) + int(best_mirror[i][j])) for i, j in zip(row_ind, col_ind)
+    logging.info("Using scipy to match interesting slices and thumbs")
+    assert dist_shrunk.shape[1] == len(interesting)
+    dist_interesting = dist_shrunk[:, interesting]
+    thumb_idx, slice_idx = scipy.optimize.linear_sum_assignment(dist_interesting)
+
+    logging.info("Building interesting matches")
+    idx_interesting = np.argwhere(interesting)
+    slice_idx = [idx_interesting[s] for s in slice_idx]
+    interesting_matches = dict(
+        (int(s), 2 * int(t) + int(best_mirror[t][s]))
+        for t, s in zip(thumb_idx, slice_idx)
     )
+
+    logging.info("Using scipy to match boring slices and thumbs")
+    used_thumb = set(thumb_idx)
+    unused_thumb = [t not in used_thumb for t in range(L // 2)]
+    boring = np.logical_not(interesting)
+    dist_boring = dist_shrunk[:, boring][unused_thumb, :]
+    thumb_idx, slice_idx = scipy.optimize.linear_sum_assignment(dist_boring)
+
+    logging.info("Building boring matches")
+    idx_boring = np.argwhere(boring)
+    slice_idx = [int(idx_boring[s]) for s in slice_idx]
+    idx_unused_thumb = np.argwhere(unused_thumb)
+    thumb_idx = [int(idx_unused_thumb[t]) for t in thumb_idx]
+    boring_matches = dict(
+        (int(s), 2 * int(t) + int(best_mirror[t][s]))
+        for t, s in zip(thumb_idx, slice_idx)
+    )
+
+    return interesting_matches | boring_matches
 
 
 def get_file_create_time(path):
     return time.localtime(os.path.getmtime(path))
 
 
+def mask(target: Image, dev: str = "cpu") -> np.ndarray:
+    import torch
+    import torchvision.transforms as T
+    from torchvision.models.segmentation import deeplabv3_resnet101 as SEG
+
+    trf = T.Compose(
+        [
+            T.Resize(512),
+            T.ToTensor(),
+            T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ]
+    )
+    inp = trf(target).unsqueeze(0).to(dev)
+    seg = SEG(pretrained=True).eval().to(dev)
+    out = seg(inp)["out"]
+    segmented = torch.argmax(out.squeeze(), dim=0).unsqueeze(0).unsqueeze(0)
+    # Resize back up to real image size. Note that numpy space and image space
+    # have axes in different order.
+    upscaled = T.Resize((target.height, target.width)).forward(segmented).squeeze()
+    om = upscaled.cpu().numpy()
+    return om
+
+
 if __name__ == "__main__":
     logging.basicConfig(format="%(asctime)-15s %(message)s", level=logging.INFO)
-    logging.info("Reading and slicing target")
-    target = Image.open("IMG_3178.JPG").convert(MODE)
-    slices = slice_target(target)
+    image_name = "IMG_3178.JPG"
+    logging.info("Reading %s", image_name)
+    orig = Image.open(image_name)
+
+    logging.info("Masking target")
+    masked = mask(orig)
+
+    logging.info("Slicing target")
+    target = orig.convert(MODE)
+    slices = slice_target(target, masked)
     slices_offsets = slices[0]
     slices_data = slices[1]
     slices_matrix = np.array(slices_data, dtype=np.uint8)
     slices_diff_matrix = np.array(slices[2], dtype=np.uint8)
+    interesting = slices[3]
     logging.info(
-        "Produced %s slices and a %s array of their bytes",
+        "Produced %s slices (%s interesting) and a %s array of their bytes",
         len(slices_offsets),
+        sum(interesting),
         slices_matrix.shape,
     )
 
@@ -187,6 +255,7 @@ if __name__ == "__main__":
     else:
         logging.info("Loading existing distances from %s", dist_filename)
         dist = np.load(dist_filename)
+        logging.info("Loaded a %s array of distances", dist.shape)
 
     # Compute matches, or load cached matches
     matches_filename = f"matches-{METRIC}-{DIFF_SIZE}-{SLICE_SIZE}.out"
@@ -194,7 +263,7 @@ if __name__ == "__main__":
         not os.path.exists(matches_filename)
         or get_file_create_time(matches_filename) < mtime
     ):
-        matches = compute_matches_scipy(dist)
+        matches = compute_matches_scipy(dist, interesting)
         with open(matches_filename, "w") as outfile:
             json.dump(matches, outfile)
     else:
@@ -209,16 +278,16 @@ if __name__ == "__main__":
         target.size[1] // SLICE_SIZE * TILE_SIZE,
     )
     mosaic = Image.new(MODE, output_size)
-    for i, j in matches.items():
-        (x, y) = slices_offsets[i]
-        thumb = thumbs[j]
+    for slice_idx, thumb_idx in matches.items():
+        (row, col) = slices_offsets[slice_idx]
+        thumb = thumbs[thumb_idx]
         thumb_img = Image.open(f"thumbs/{thumb.uid}.{TILE_SIZE}").convert(MODE)
         if thumb.flipped:
             thumb_img = thumb_img.transpose(Image.FLIP_LEFT_RIGHT)
         data = np.frombuffer(thumb_img.tobytes(), dtype=np.uint8)
-        match = produce_output_tile(data, slices_data[i], x, y)
-        px = x * TILE_SIZE
-        py = y * TILE_SIZE
+        match = produce_output_tile(data, slices_data[slice_idx])
+        px = col * TILE_SIZE
+        py = row * TILE_SIZE
         mosaic.paste(
             Image.frombytes(MODE, (TILE_SIZE, TILE_SIZE), match),
             (px, py, px + TILE_SIZE, py + TILE_SIZE),

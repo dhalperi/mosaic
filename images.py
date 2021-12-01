@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import time
+from multiprocessing import Pool
 from typing import Dict, List, Tuple
 
 import numpy as np
@@ -22,6 +23,26 @@ METRIC = "correlation-regularized"
 
 
 def compute_dist(thumbs_matrix: np.ndarray, slices_matrix: np.ndarray) -> np.ndarray:
+    # Break each array in half, so that we can run 4 computations at once
+    with Pool(processes=4) as pool:
+        T = thumbs_matrix.shape[0]
+        S = slices_matrix.shape[0]
+        t1 = thumbs_matrix[: T // 2, :]
+        t2 = thumbs_matrix[T // 2 :, :]
+        s1 = slices_matrix[: S // 2, :]
+        s2 = slices_matrix[S // 2 :, :]
+        d11, d12, d21, d22 = pool.starmap(
+            compute_dist_internal, ((t1, s1), (t1, s2), (t2, s1), (t2, s2))
+        )
+        return np.concatenate(
+            [np.concatenate([d11, d12], axis=1), np.concatenate([d21, d22], axis=1)],
+            axis=0,
+        )
+
+
+def compute_dist_internal(
+    thumbs_matrix: np.ndarray, slices_matrix: np.ndarray
+) -> np.ndarray:
     if METRIC == "cityblock":
         raw_metric = cdist(thumbs_matrix, slices_matrix, "cityblock")
         return (raw_metric / DIFF_SIZE).astype(np.uint16)

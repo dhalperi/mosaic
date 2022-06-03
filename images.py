@@ -207,7 +207,7 @@ def mask(target: Image, dev: str = "cpu") -> np.ndarray:
     return om
 
 
-if __name__ == "__main__":
+def main():
     logging.basicConfig(format="%(asctime)-15s %(message)s", level=logging.INFO)
     image_name = "IMG_3178.JPG"
     logging.info("Reading %s", image_name)
@@ -314,3 +314,7 @@ if __name__ == "__main__":
     )
     xored = Image.frombytes(MODE, target.size, diff)
     xored.save(f"output/output-{MODE}-{METRIC}-{DIFF_SIZE}-{SLICE_SIZE}-xor.jpg")
+
+
+if __name__ == "__main__":
+    main()

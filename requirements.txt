@@ -67,6 +67,25 @@ numpy==1.22.3 \
     #   -r requirements.in
     #   scipy
     #   torchvision
+nvidia-cublas-cu11==11.10.3.66 \
+    --hash=sha256:8ac17ba6ade3ed56ab898a036f9ae0756f1e81052a317bf98f8c6d18dc3ae49e \
+    --hash=sha256:d32e4d75f94ddfb93ea0a5dda08389bcc65d8916a25cb9f37ac89edaeed3bded
+    # via
+    #   nvidia-cudnn-cu11
+    #   torch
+nvidia-cuda-nvrtc-cu11==11.7.99 \
+    --hash=sha256:9f1562822ea264b7e34ed5930567e89242d266448e936b85bc97a3370feabb03 \
+    --hash=sha256:f2effeb1309bdd1b3854fc9b17eaf997808f8b25968ce0c7070945c4265d64a3 \
+    --hash=sha256:f7d9610d9b7c331fa0da2d1b2858a4a8315e6d49765091d28711c8946e7425e7
+    # via torch
+nvidia-cuda-runtime-cu11==11.7.99 \
+    --hash=sha256:bc77fa59a7679310df9d5c70ab13c4e34c64ae2124dd1efd7e5474b71be125c7 \
+    --hash=sha256:cc768314ae58d2641f07eac350f40f99dcb35719c4faff4bc458a7cd2b119e31
+    # via torch
+nvidia-cudnn-cu11==8.5.0.96 \
+    --hash=sha256:402f40adfc6f418f9dae9ab402e773cfed9beae52333f6d86ae3107a1b9527e7 \
+    --hash=sha256:71f8111eb830879ff2836db3cccf03bbd735df9b0d17cd93761732ac50a8a108
+    # via torch
 oauthlib==3.2.2 \
     --hash=sha256:8139f29aac13e25d502680e9e19963e83f16838d48a0d71c287fe40e7067fbca \
     --hash=sha256:9859c40929662bec5d64f34d01c99e093149682a3f38915dc0655d5a633dd918
@@ -261,18 +280,24 @@ urllib3==2.0.6 \
 wheel==0.38.4 \
     --hash=sha256:965f5259b566725405b05e7cf774052044b1ed30119b5d586b2703aafe8719ac \
     --hash=sha256:b60533f3f5d530e971d6737ca6d58681ee434818fab630c83a734bb10c083ce8
-    # via pip-tools
+    # via
+    #   nvidia-cublas-cu11
+    #   nvidia-cuda-runtime-cu11
+    #   pip-tools
 zipp==3.17.0 \
     --hash=sha256:0e923e726174922dce09c53c59ad483ff7bbb8e572e00c7f7c46b88556409f31 \
     --hash=sha256:84e64a1c28cf7e91ed2078bb8cc8c259cb19b76942096c8d7b84947690cabaf0
     # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
-pip==23.2.1 \
-    --hash=sha256:7ccf472345f20d35bdc9d1841ff5f313260c2c33fe417f48c30ac46cccabf5be \
-    --hash=sha256:fb0bd5435b3200c602b5bf61d2d43c2f13c02e29c1707567ae7fbc514eb9faf2
+pip==23.3 \
+    --hash=sha256:bb7d4f69f488432e4e96394612f43ab43dd478d073ef7422604a570f7157561e \
+    --hash=sha256:bc38bb52bc286514f8f7cb3a1ba5ed100b76aaef29b521d48574329331c5ae7b
     # via pip-tools
 setuptools==65.6.3 \
     --hash=sha256:57f6f22bde4e042978bcd50176fdb381d7c21a9efa4041202288d3737a0c6a54 \
     --hash=sha256:a7620757bf984b58deaf32fc8a4577a9bbc0850cf92c20e1ce41c38c19e5fb75
-    # via pip-tools
+    # via
+    #   nvidia-cublas-cu11
+    #   nvidia-cuda-runtime-cu11
+    #   pip-tools

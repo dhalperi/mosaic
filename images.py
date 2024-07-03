@@ -8,6 +8,8 @@ from typing import Dict, List, Tuple
 import numpy as np
 from PIL import Image
 from scipy.spatial.distance import cdist, cityblock
+from pillow_heif import register_heif_opener
+register_heif_opener()
 
 from lib import read_thumbs
 
@@ -209,7 +211,7 @@ def mask(target: Image, dev: str = "cpu") -> np.ndarray:
 
 def main():
     logging.basicConfig(format="%(asctime)-15s %(message)s", level=logging.INFO)
-    image_name = "IMG_3178.JPG"
+    image_name = "IMG_7828.HEIC"
     logging.info("Reading %s", image_name)
     orig = Image.open(image_name)
 

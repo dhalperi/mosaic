@@ -106,7 +106,7 @@ def _download_image(session: AuthorizedSession, queue, size):
                     print(e)
                     os.unlink(outfile)
         else:
-            print(f"Skipping {m} since {m.get('mimeType','')} is not 'image/'")
+            print(f"Skipping {m} since {m.get('mimeType', '')} is not 'image/'")
         queue.task_done()
 
 
@@ -157,7 +157,7 @@ def delete_unknown_files(media_items):
 
 if __name__ == "__main__":
     credentials = Credentials.from_authorized_user_file(
-        "photos-creds-1637217451.418922.json"
+        "photos-creds.json"
     )
     session = AuthorizedSession(credentials)
     # session = get_session()

@@ -132,7 +132,7 @@ def download_images(session, media_items, size):
 
 
 def list_media_items(session):
-    if os.path.exists("media_items.json"):
+    if os.path.exists("media_items.json") and (time.time() - os.stat("media_items.json").st_mtime < 86400):
         with open("media_items.json", "r") as infile:
             return json.load(infile)
     else:

@@ -132,7 +132,9 @@ def download_images(session, media_items, size):
 
 
 def list_media_items(session):
-    if os.path.exists("media_items.json") and (time.time() - os.stat("media_items.json").st_mtime < 86400):
+    if os.path.exists("media_items.json") and (
+        time.time() - os.stat("media_items.json").st_mtime < 86400
+    ):
         with open("media_items.json", "r") as infile:
             return json.load(infile)
     else:
@@ -156,9 +158,7 @@ def delete_unknown_files(media_items):
 
 
 if __name__ == "__main__":
-    credentials = Credentials.from_authorized_user_file(
-        "photos-creds.json"
-    )
+    credentials = Credentials.from_authorized_user_file("photos-creds.json")
     session = AuthorizedSession(credentials)
     # session = get_session()
     media_items = list_media_items(session)

@@ -7,11 +7,12 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 from PIL import Image
-from scipy.spatial.distance import cdist, cityblock
 from pillow_heif import register_heif_opener
+from scipy.spatial.distance import cdist, cityblock
+
 register_heif_opener()
 
-from lib import read_thumbs
+from .lib import read_thumbs
 
 SLICE_SIZE = 28
 DIFF_SIZE = 28
@@ -50,12 +51,12 @@ def compute_dist_internal(
         return (raw_metric / DIFF_SIZE).astype(np.uint16)
     elif METRIC == "correlation":
         raw_metric = cdist(thumbs_matrix, slices_matrix, "correlation")
-        return (raw_metric * 2 ** 14).astype(np.uint16)
+        return (raw_metric * 2**14).astype(np.uint16)
     elif METRIC == "correlation-regularized":
         mean_thumb = np.mean(thumbs_matrix, 1).reshape((-1, 1))
         mean_slice = np.mean(slices_matrix, 1).reshape((-1, 1))
         mean = (cdist(mean_thumb, mean_slice, "sqeuclidean") / 2).astype(np.uint16)
-        corr = (cdist(thumbs_matrix, slices_matrix, "correlation") * 2 ** 14).astype(
+        corr = (cdist(thumbs_matrix, slices_matrix, "correlation") * 2**14).astype(
             np.uint16
         )
         ret = corr + mean

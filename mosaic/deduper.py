@@ -12,7 +12,7 @@ from google.oauth2.credentials import Credentials
 from PIL import Image
 from scipy.spatial.distance import pdist
 
-from lib import Thumb, read_thumbs
+from .lib import Thumb, read_thumbs
 
 
 def load_media_items():

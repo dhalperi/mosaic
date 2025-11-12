@@ -5,11 +5,9 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    # Configure pip-compile workflow
-    # Dependabot will update requirements.in and regenerate requirements.txt
-    # using pip-compile with the same options as specified in requirements.txt header
-    pip_compilation:
-      - requirements.in
+    # Allow Dependabot to run pip-compile to regenerate requirements.txt
+    # from requirements.in with the same options (--allow-unsafe --generate-hashes)
+    insecure-external-code-execution: allow
   
   # GitHub Actions
   - package-ecosystem: "github-actions"

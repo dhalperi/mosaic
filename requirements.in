@@ -6,4 +6,5 @@ pillow-heif
 pip-tools
 requests
 scipy
-torchvision
+torch==2.9.1
+torchvision==0.24.1

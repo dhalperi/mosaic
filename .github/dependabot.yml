@@ -1,0 +1,18 @@
+version: 2
+updates:
+  # Python dependencies using pip-compile workflow
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Configure pip-compile workflow
+    # Dependabot will update requirements.in and regenerate requirements.txt
+    # using pip-compile with the same options as specified in requirements.txt header
+    pip_compilation:
+      - requirements.in
+  
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

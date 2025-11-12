@@ -61,10 +61,19 @@ python -m unittest tests.test_lib -v
 This project uses:
 - **black** for code formatting
 - **isort** for import sorting
-- **pre-commit** hooks for automatic formatting
 
 Format code before committing:
 ```bash
 black mosaic/ tests/
 isort mosaic/ tests/ --profile black
 ```
+
+### Optional: Pre-commit hooks
+
+To automatically format code before each commit, install pre-commit hooks:
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+The pre-commit configuration will automatically run black and isort on staged files.

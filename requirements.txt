@@ -120,9 +120,9 @@ fsspec==2024.6.1 \
     --hash=sha256:3cb443f8bcd2efb31295a5b9fdb02aee81d8452c80d28f97a6d0959e6cee101e \
     --hash=sha256:fad7d7e209dd4c1208e3bbfda706620e0da5142bebbd9c384afb95b07e798e49
     # via torch
-google-auth==2.31.0 \
-    --hash=sha256:042c4702efa9f7d3c48d3a69341c209381b125faa6dbf3ebe56bc7e40ae05c23 \
-    --hash=sha256:87805c36970047247c8afe614d4e3af8eceafc1ebba0c679fe75ddd1d575e871
+google-auth==2.43.0 \
+    --hash=sha256:88228eee5fc21b62a1b5fe773ca15e67778cb07dc8363adcb4a8827b52d81483 \
+    --hash=sha256:af628ba6fa493f75c7e9dbe9373d148ca9f4399b5ea29976519e0a3848eddd16
     # via
     #   -r requirements.in
     #   google-auth-oauthlib

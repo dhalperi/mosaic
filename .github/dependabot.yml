@@ -1,0 +1,16 @@
+version: 2
+updates:
+  # Python dependencies using pip-compile workflow
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Allow Dependabot to run pip-compile to regenerate requirements.txt
+    # from requirements.in with the same options (--allow-unsafe --generate-hashes)
+    insecure-external-code-execution: allow
+  
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

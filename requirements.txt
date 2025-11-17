@@ -455,9 +455,9 @@ pillow-heif==0.17.0 \
     --hash=sha256:f70150db79a3c2e9d1f93263dc88810f265c3d86968b8954bc563f487672a999 \
     --hash=sha256:fd5b9d27ffb06ce81a8d4c86ca026ce7644108cc27802a8122a52b7863fb1af7
     # via -r requirements.in
-pip-tools==7.4.1 \
-    --hash=sha256:4c690e5fbae2f21e87843e89c26191f0d9454f362d8acdbd695716493ec8b3a9 \
-    --hash=sha256:864826f5073864450e24dbeeb85ce3920cdfb09848a3d69ebf537b521f14bcc9
+pip-tools==7.5.2 \
+    --hash=sha256:2d64d72da6a044da1110257d333960563d7a4743637e8617dd2610ae7b82d60f \
+    --hash=sha256:2fe16db727bbe5bf28765aeb581e792e61be51fc275545ef6725374ad720a1ce
     # via -r requirements.in
 pyasn1==0.6.0 \
     --hash=sha256:3a35ab2c4b5ef98e17dfdec8ab074046fbda76e281c5a706ccd82328cfc8f64c \

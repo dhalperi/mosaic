@@ -1,6 +1,6 @@
 google-auth
 google-auth-oauthlib
-numpy<2
+numpy<3
 Pillow
 pillow-heif
 pip-tools
